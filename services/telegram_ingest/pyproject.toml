@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chalybcrypto-telegram-ingest"
 version = "0.0.1"
-description = "Telethon ingest + signal parser for ChalybCrypto."
+description = "Telethon ingest + signal parser for ChalyCrypto."
 requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.7,<3",

@@ -2,7 +2,7 @@
 
 These are called by the chalyb server (not by end-user browsers) to:
 
-  - provision a tenant when a user clicks "Abrir ChalybCrypto" for the first time
+  - provision a tenant when a user clicks "Abrir ChalyCrypto" for the first time
   - pause / resume a tenant (e.g. when their subscription lapses)
 
 Auth: Bearer token in `Authorization` header MUST match CHALYB_ADMIN_TOKEN.

@@ -1,6 +1,6 @@
-# CLAUDE.md — ChalybCrypto build rules
+# CLAUDE.md — ChalyCrypto build rules
 
-You are building **ChalybCrypto**, a **futures-only** crypto trading engine. Read `ARCHITECTURE.md`
+You are building **ChalyCrypto**, a **futures-only** crypto trading engine. Read `ARCHITECTURE.md`
 and `BUILD_PLAN.md` before writing code. The user has also attached source documents (trading books
 and Spanish-language strategy/risk PDFs) — treat those as the **trading-knowledge source of truth**
 for strategy logic, risk concepts, and terminology.

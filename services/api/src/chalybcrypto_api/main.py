@@ -24,7 +24,7 @@ def _cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
-app = FastAPI(title="ChalybCrypto API", version="0.0.1")
+app = FastAPI(title="ChalyCrypto API", version="0.0.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),

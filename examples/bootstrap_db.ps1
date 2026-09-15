@@ -1,4 +1,4 @@
-# Bootstrap a local Postgres for ChalybCrypto.
+# Bootstrap a local Postgres for ChalyCrypto.
 # Run once. Idempotent — safe to re-run.
 #
 #   .\examples\bootstrap_db.ps1

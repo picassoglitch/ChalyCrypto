@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chalybcrypto-worker"
 version = "0.0.1"
-description = "Scanner + Celery tasks for ChalybCrypto."
+description = "Scanner + Celery tasks for ChalyCrypto."
 requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.7,<3",

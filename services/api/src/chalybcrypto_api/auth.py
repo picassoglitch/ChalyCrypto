@@ -122,7 +122,7 @@ async def current_user_id(
 
     In `jwt` mode (production):
       1. Try nxc_session cookie (minted by /auth/sso). Single hop from a Chalyb
-         "Abrir ChalybCrypto" click — best UX, no Bearer juggling on every
+         "Abrir ChalyCrypto" click — best UX, no Bearer juggling on every
          dashboard request.
       2. Fall back to Authorization: Bearer for direct-API callers (CLI, tests).
     In `stub` mode (local dev): X-User-Id header.

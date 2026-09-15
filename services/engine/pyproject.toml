@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chalybcrypto-engine"
 version = "0.0.1"
-description = "Deterministic Strategy + Risk engines for ChalybCrypto. No LLMs in the execution path."
+description = "Deterministic Strategy + Risk engines for ChalyCrypto. No LLMs in the execution path."
 requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.7,<3",

@@ -1,7 +1,7 @@
 [project]
 name = "chalybcrypto-workspace"
 version = "0.0.0"
-description = "Workspace metadata for ChalybCrypto (test runner config). Real packages live under packages/ and services/."
+description = "Workspace metadata for ChalyCrypto (test runner config). Real packages live under packages/ and services/."
 requires-python = ">=3.12"
 
 [tool.pytest.ini_options]

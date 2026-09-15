@@ -69,7 +69,7 @@ class DailyDigest:
 # Reusable system prompts. Marked cacheable in the API call so cache hits accrue.
 
 _THESIS_SYSTEM = (
-    "You are ChalybCrypto's post-trade explainer. The deterministic engine has ALREADY "
+    "You are ChalyCrypto's post-trade explainer. The deterministic engine has ALREADY "
     "approved this trade. Your job is to write a short, sober thesis (3-5 sentences) "
     "explaining WHY the strategy fired and what the operator should watch. "
     "Avoid hype. Avoid guarantees of profit (CLAUDE.md). Spanish unless the user data "

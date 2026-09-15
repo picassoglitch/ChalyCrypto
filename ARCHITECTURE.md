@@ -1,4 +1,4 @@
-# ChalybCrypto — Architecture & Design Decisions
+# ChalyCrypto — Architecture & Design Decisions
 
 > Futures-only crypto trading engine. **Survival first, not profit promises.**
 > This document is the "why". `CLAUDE.md` is the "rules". `BUILD_PLAN.md` is the "how/when".

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chalybcrypto-llm"
 version = "0.0.1"
-description = "Async Claude analyst for ChalybCrypto. NEVER in the execution path."
+description = "Async Claude analyst for ChalyCrypto. NEVER in the execution path."
 requires-python = ">=3.12"
 dependencies = [
   "httpx>=0.27,<1",
