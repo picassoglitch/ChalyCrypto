@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import timedelta
 from decimal import Decimal
 
-from nexocrypto_engine.risk import RejectReason
-from nexocrypto_engine.risk.guards import (
+from chalybcrypto_engine.risk import RejectReason
+from chalybcrypto_engine.risk.guards import (
     check_account_lock,
     check_cooldowns,
     check_exposure_caps,
@@ -12,7 +12,7 @@ from nexocrypto_engine.risk.guards import (
     check_paper_gate,
     check_stale_price,
 )
-from nexocrypto_shared import Mode
+from chalybcrypto_shared import Mode
 
 from ._helpers import NOW, make_account, make_profile
 

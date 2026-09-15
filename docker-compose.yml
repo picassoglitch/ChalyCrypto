@@ -15,13 +15,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: nexocrypto
-      POSTGRES_PASSWORD: nexocrypto
-      POSTGRES_DB: nexocrypto
+      POSTGRES_USER: chalybcrypto
+      POSTGRES_PASSWORD: chalybcrypto
+      POSTGRES_DB: chalybcrypto
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexocrypto -d nexocrypto"]
+      test: ["CMD-SHELL", "pg_isready -U chalybcrypto -d chalybcrypto"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -38,7 +38,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
-      DATABASE_URL: postgresql://nexocrypto:nexocrypto@postgres:5432/nexocrypto
+      DATABASE_URL: postgresql://chalybcrypto:chalybcrypto@postgres:5432/chalybcrypto
     ports:
       - "8000:8000"
     depends_on:

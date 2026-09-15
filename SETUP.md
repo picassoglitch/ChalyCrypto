@@ -3,11 +3,11 @@
 Workspace layout (Python 3.12+, per CLAUDE.md):
 
 ```
-packages/shared           nexocrypto-shared        pydantic models, enums, fees, config
-services/engine           nexocrypto-engine        strategy + risk + backtest + paper
-services/api              nexocrypto-api           FastAPI app (/api/health)
-services/telegram_ingest  nexocrypto-telegram-ingest  Telegram signal parser
-connectors                nexocrypto-connectors    Bitunix + Binance-data + LBank
+packages/shared           chalybcrypto-shared        pydantic models, enums, fees, config
+services/engine           chalybcrypto-engine        strategy + risk + backtest + paper
+services/api              chalybcrypto-api           FastAPI app (/api/health)
+services/telegram_ingest  chalybcrypto-telegram-ingest  Telegram signal parser
+connectors                chalybcrypto-connectors    Bitunix + Binance-data + LBank
 ```
 
 ## First-time setup
@@ -36,7 +36,7 @@ py -3.12 -m venv .venv   # or py -3.14 -m venv .venv
 After step 2 you can run any of the workspace packages as `-m`:
 
 ```powershell
-.venv/Scripts/python.exe -m nexocrypto_connectors.bitunix.capture BTCUSDT depth_books
+.venv/Scripts/python.exe -m chalybcrypto_connectors.bitunix.capture BTCUSDT depth_books
 .venv/Scripts/python.exe examples/run_backtest.py
 ```
 
@@ -69,7 +69,7 @@ docker compose ps
 | What | How |
 |---|---|
 | Backtest BTCUSDT on Binance public klines | `python examples/run_backtest.py` |
-| Capture Bitunix WS depth_books shape | `python -m nexocrypto_connectors.bitunix.capture BTCUSDT depth_books --count 3` |
+| Capture Bitunix WS depth_books shape | `python -m chalybcrypto_connectors.bitunix.capture BTCUSDT depth_books --count 3` |
 | Health check | `curl http://localhost:8000/api/health` |
 | Parse a Telegram message | see [tests/test_telegram_parser.py](tests/test_telegram_parser.py) |
 
@@ -77,10 +77,10 @@ docker compose ps
 
 | Area | Path |
 |---|---|
-| Strategy ABC + indicators | [services/engine/src/nexocrypto_engine/strategy/](services/engine/src/nexocrypto_engine/strategy/) |
-| Risk engine | [services/engine/src/nexocrypto_engine/risk/](services/engine/src/nexocrypto_engine/risk/) |
-| Backtester | [services/engine/src/nexocrypto_engine/backtest/](services/engine/src/nexocrypto_engine/backtest/) |
-| Paper engine | [services/engine/src/nexocrypto_engine/paper/](services/engine/src/nexocrypto_engine/paper/) |
-| Bitunix connector | [connectors/src/nexocrypto_connectors/bitunix/](connectors/src/nexocrypto_connectors/bitunix/) |
+| Strategy ABC + indicators | [services/engine/src/chalybcrypto_engine/strategy/](services/engine/src/chalybcrypto_engine/strategy/) |
+| Risk engine | [services/engine/src/chalybcrypto_engine/risk/](services/engine/src/chalybcrypto_engine/risk/) |
+| Backtester | [services/engine/src/chalybcrypto_engine/backtest/](services/engine/src/chalybcrypto_engine/backtest/) |
+| Paper engine | [services/engine/src/chalybcrypto_engine/paper/](services/engine/src/chalybcrypto_engine/paper/) |
+| Bitunix connector | [connectors/src/chalybcrypto_connectors/bitunix/](connectors/src/chalybcrypto_connectors/bitunix/) |
 | Supabase migrations | [supabase/migrations/](supabase/migrations/) |
-| Telegram parser | [services/telegram_ingest/src/nexocrypto_telegram_ingest/](services/telegram_ingest/src/nexocrypto_telegram_ingest/) |
+| Telegram parser | [services/telegram_ingest/src/chalybcrypto_telegram_ingest/](services/telegram_ingest/src/chalybcrypto_telegram_ingest/) |

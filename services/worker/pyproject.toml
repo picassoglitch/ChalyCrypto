@@ -3,15 +3,15 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nexocrypto-worker"
+name = "chalybcrypto-worker"
 version = "0.0.1"
-description = "Scanner + Celery tasks for NexoCrypto."
+description = "Scanner + Celery tasks for ChalybCrypto."
 requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.7,<3",
-  "nexocrypto-shared",
-  "nexocrypto-engine",
-  "nexocrypto-connectors",
+  "chalybcrypto-shared",
+  "chalybcrypto-engine",
+  "chalybcrypto-connectors",
 ]
 
 [tool.setuptools.packages.find]

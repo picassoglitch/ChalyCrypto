@@ -15,7 +15,7 @@ from typing import Any, Callable
 import httpx
 import pytest
 
-from nexocrypto_connectors import BinanceDataConnector, ConnectorError
+from chalybcrypto_connectors import BinanceDataConnector, ConnectorError
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "binance"

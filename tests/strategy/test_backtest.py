@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from nexocrypto_engine.backtest import (
+from chalybcrypto_engine.backtest import (
     BacktestReport,
     Backtester,
     ConservativeFillModel,
@@ -12,8 +12,8 @@ from nexocrypto_engine.backtest import (
     simulate_exit_fill,
     summarize,
 )
-from nexocrypto_engine.strategy import EmaAdxTrendParams, EmaAdxTrendStrategy
-from nexocrypto_shared import FeeSchedule, Side
+from chalybcrypto_engine.strategy import EmaAdxTrendParams, EmaAdxTrendStrategy
+from chalybcrypto_shared import FeeSchedule, Side
 
 from ._helpers import linear_trend, pullback_then_resume_uptrend
 

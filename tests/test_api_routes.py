@@ -9,11 +9,11 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from nexocrypto_api.deps import set_store_for_tests
-from nexocrypto_api.main import app
-from nexocrypto_api.store import InMemoryStore
-from nexocrypto_engine.risk import AccountState
-from nexocrypto_shared import (
+from chalybcrypto_api.deps import set_store_for_tests
+from chalybcrypto_api.main import app
+from chalybcrypto_api.store import InMemoryStore
+from chalybcrypto_engine.risk import AccountState
+from chalybcrypto_shared import (
     FeeSchedule,
     MarginType,
     Mode,

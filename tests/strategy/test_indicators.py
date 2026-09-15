@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from nexocrypto_engine.strategy.indicators import (
+from chalybcrypto_engine.strategy.indicators import (
     adx,
     atr,
     ema,

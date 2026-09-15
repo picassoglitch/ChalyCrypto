@@ -14,10 +14,10 @@ from typing import Any, Callable
 import httpx
 import pytest
 
-from nexocrypto_connectors import ConnectorError
-from nexocrypto_connectors.base import OrderRequest, PositionSide
-from nexocrypto_connectors.bitunix import BitunixConnector
-from nexocrypto_shared import MarginType, OrderType, Side
+from chalybcrypto_connectors import ConnectorError
+from chalybcrypto_connectors.base import OrderRequest, PositionSide
+from chalybcrypto_connectors.bitunix import BitunixConnector
+from chalybcrypto_shared import MarginType, OrderType, Side
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "bitunix"

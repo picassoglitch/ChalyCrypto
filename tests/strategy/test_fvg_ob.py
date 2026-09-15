@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from nexocrypto_engine.strategy import FvgObParams, FvgObStrategy, StrategyContext
-from nexocrypto_shared import Kline, MarketSnapshot, Side
+from chalybcrypto_engine.strategy import FvgObParams, FvgObStrategy, StrategyContext
+from chalybcrypto_shared import Kline, MarketSnapshot, Side
 
 from ._helpers import flat_series, _bar, BAR_MINUTES
 

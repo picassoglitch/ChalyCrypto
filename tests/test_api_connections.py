@@ -8,15 +8,15 @@ import pytest
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
-from nexocrypto_api.deps import set_store_for_tests
-from nexocrypto_api.main import app
-from nexocrypto_api.store import InMemoryStore
+from chalybcrypto_api.deps import set_store_for_tests
+from chalybcrypto_api.main import app
+from chalybcrypto_api.store import InMemoryStore
 
 
 @pytest.fixture
 def client(monkeypatch):
     # Fresh in-memory store + a real Fernet key so vault.encrypt actually runs.
-    monkeypatch.setenv("NEXOCRYPTO_MASTER_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setenv("CHALYBCRYPTO_MASTER_ENCRYPTION_KEY", Fernet.generate_key().decode())
     store = InMemoryStore()
     set_store_for_tests(store)
     with TestClient(app) as c:
@@ -152,7 +152,7 @@ def test_post_rejects_extra_fields_per_pydantic_strict(client):
 
 
 def test_missing_master_key_returns_500_with_clear_message(client, monkeypatch):
-    monkeypatch.delenv("NEXOCRYPTO_MASTER_ENCRYPTION_KEY", raising=False)
+    monkeypatch.delenv("CHALYBCRYPTO_MASTER_ENCRYPTION_KEY", raising=False)
     c, _ = client
     r = c.post(
         "/api/connections/exchange",
@@ -160,7 +160,7 @@ def test_missing_master_key_returns_500_with_clear_message(client, monkeypatch):
         json={"exchange": "bitunix", "api_key": "k", "api_secret": "s"},
     )
     assert r.status_code == 500
-    assert "NEXOCRYPTO_MASTER_ENCRYPTION_KEY" in r.json()["detail"]
+    assert "CHALYBCRYPTO_MASTER_ENCRYPTION_KEY" in r.json()["detail"]
 
 
 # ── per-user isolation ────────────────────────────────────────────────────

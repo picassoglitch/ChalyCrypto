@@ -13,7 +13,7 @@ from typing import Any, Callable
 import httpx
 import pytest
 
-from nexocrypto_connectors import ConnectorError, LBankPublicConnector
+from chalybcrypto_connectors import ConnectorError, LBankPublicConnector
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "lbank"

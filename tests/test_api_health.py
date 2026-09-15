@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from nexocrypto_api.main import app
+from chalybcrypto_api.main import app
 
 
 def test_health_ok():

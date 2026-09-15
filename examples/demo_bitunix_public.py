@@ -10,7 +10,7 @@ try:
 except AttributeError:
     pass
 
-from nexocrypto_connectors.bitunix import BitunixConnector
+from chalybcrypto_connectors.bitunix import BitunixConnector
 
 
 async def main() -> None:

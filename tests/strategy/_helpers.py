@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from nexocrypto_shared import Kline
+from chalybcrypto_shared import Kline
 
 
 BAR_MINUTES = 5

@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 
-from nexocrypto_telegram_control import (
+from chalybcrypto_telegram_control import (
     Action,
     CallbackHandlerResult,
     ControlBot,

@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from nexocrypto_engine.strategy import (
+from chalybcrypto_engine.strategy import (
     EmaAdxTrendParams,
     EmaAdxTrendStrategy,
     StrategyContext,
 )
-from nexocrypto_shared import MarketSnapshot, Side
+from chalybcrypto_shared import MarketSnapshot, Side
 
 from ._helpers import flat_series, linear_trend, pullback_then_resume_uptrend
 

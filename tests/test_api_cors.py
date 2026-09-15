@@ -7,10 +7,10 @@ from fastapi.testclient import TestClient
 
 
 def test_cors_allows_default_localhost(monkeypatch):
-    monkeypatch.delenv("NEXOCRYPTO_CORS_ORIGINS", raising=False)
+    monkeypatch.delenv("CHALYBCRYPTO_CORS_ORIGINS", raising=False)
     # main is module-level configured; reload it so the env change takes effect
     import importlib
-    from nexocrypto_api import main as main_mod
+    from chalybcrypto_api import main as main_mod
 
     importlib.reload(main_mod)
     with TestClient(main_mod.app) as c:
@@ -27,9 +27,9 @@ def test_cors_allows_default_localhost(monkeypatch):
 
 
 def test_cors_blocks_unconfigured_origin(monkeypatch):
-    monkeypatch.delenv("NEXOCRYPTO_CORS_ORIGINS", raising=False)
+    monkeypatch.delenv("CHALYBCRYPTO_CORS_ORIGINS", raising=False)
     import importlib
-    from nexocrypto_api import main as main_mod
+    from chalybcrypto_api import main as main_mod
 
     importlib.reload(main_mod)
     with TestClient(main_mod.app) as c:
@@ -45,18 +45,18 @@ def test_cors_blocks_unconfigured_origin(monkeypatch):
 
 
 def test_cors_allows_configured_production_origin(monkeypatch):
-    monkeypatch.setenv("NEXOCRYPTO_CORS_ORIGINS", "https://nexo-ai.world")
+    monkeypatch.setenv("CHALYBCRYPTO_CORS_ORIGINS", "https://chalyb.com")
     import importlib
-    from nexocrypto_api import main as main_mod
+    from chalybcrypto_api import main as main_mod
 
     importlib.reload(main_mod)
     with TestClient(main_mod.app) as c:
         r = c.options(
             "/api/signals",
             headers={
-                "Origin": "https://nexo-ai.world",
+                "Origin": "https://chalyb.com",
                 "Access-Control-Request-Method": "GET",
             },
         )
     assert r.status_code == 200
-    assert r.headers.get("access-control-allow-origin") == "https://nexo-ai.world"
+    assert r.headers.get("access-control-allow-origin") == "https://chalyb.com"

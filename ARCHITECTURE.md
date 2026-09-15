@@ -1,4 +1,4 @@
-# NexoCrypto — Architecture & Design Decisions
+# ChalybCrypto — Architecture & Design Decisions
 
 > Futures-only crypto trading engine. **Survival first, not profit promises.**
 > This document is the "why". `CLAUDE.md` is the "rules". `BUILD_PLAN.md` is the "how/when".
@@ -51,7 +51,7 @@ LBank and Bitunix. Replaces the derivatives-context role; far better than CMC fo
 - Coinglass order book = L2/L3 **snapshots / heatmaps**, ≤1-min updates on lower tiers → usable as a
   *liquidity-zone context layer*, **NOT** for scalp execution timing.
 - Licensing: ~$29 Hobbyist / $79 Startup / $299 Standard / $699 Pro. Lower tiers are **personal use,
-  ≤1-min updates**; **commercial use (nexo-ai.world as a product) needs Standard $299/mo+.**
+  ≤1-min updates**; **commercial use (chalyb.com as a product) needs Standard $299/mo+.**
 
 **Lane C — CoinMarketCap (MARKET CONTEXT):** ranking, market cap, 24h volume, trending, pair sanity
 validation. Optional once Coinglass is in, but kept for ranking/trending (aligns with the
@@ -84,9 +84,9 @@ configurable spread, slippage model, funding accrual on holds), labels every res
 
 ### 0.7 Full-auto is the highest-liability feature
 **Decision:** full-auto is **out of the MVP**. Ship Backtest → Paper → Semi-auto. Full-auto is a
-later, heavily gated phase and may stay internal-only for the public nexo-ai.world product.
+later, heavily gated phase and may stay internal-only for the public chalyb.com product.
 
-### 0.8 Distribution through nexo-ai.world has a regulatory surface
+### 0.8 Distribution through chalyb.com has a regulatory surface
 Offering automated execution/signals to LATAM retail may constitute regulated investment advice or
 asset management (e.g. CNBV in Mexico). Users-bring-own-API-keys (no custody, no pooled funds) is a
 strong mitigation, but it does not remove the question. **Get a compliance/legal review before
@@ -98,8 +98,8 @@ selling this to third parties.** (This is a flag, not legal advice.)
 
 ```
                          ┌─────────────────────────────────────────┐
-                         │  nexo-ai.world (Next.js 15, existing)     │
-                         │  /operators/nexocrypto  (RBAC-gated)      │
+                         │  chalyb.com (Next.js 15, existing)     │
+                         │  /operators/chalybcrypto  (RBAC-gated)      │
                          │  setup wizard + dashboard module          │
                          └───────────────┬───────────────────────────┘
                                          │ authed REST + Supabase Realtime/SSE
@@ -119,7 +119,7 @@ selling this to third parties.** (This is a flag, not legal advice.)
        │                     └────────────────────┘
        ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Supabase (Postgres + Auth + Realtime + RLS)  schema: nexocrypto   │
+│ Supabase (Postgres + Auth + Realtime + RLS)  schema: chalybcrypto   │
 └─────────────────────────────────────────────────────────────────┘
        ▲
        │ async (never blocks a fill)
@@ -130,7 +130,7 @@ selling this to third parties.** (This is a flag, not legal advice.)
 └──────────────────────┘
 ```
 
-**Stack:** Next.js 15 + TS + Tailwind v4 (reuse nexo-ai.world) · FastAPI (Python 3.12) ·
+**Stack:** Next.js 15 + TS + Tailwind v4 (reuse chalyb.com) · FastAPI (Python 3.12) ·
 Supabase (Postgres/Auth/Realtime) · Redis + Celery · TradingView Lightweight Charts ·
 Docker Compose (local) → cloud later.
 

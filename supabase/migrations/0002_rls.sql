@@ -1,4 +1,4 @@
--- 0002_rls.sql — Row-Level Security on every nexocrypto table.
+-- 0002_rls.sql — Row-Level Security on every chalybcrypto table.
 -- Pattern: per-user tables → owner-only via auth.uid() = user_id.
 -- Global config tables (fee_schedules, strategies) → readable to all authed users,
 -- writes restricted to service_role.
@@ -8,13 +8,13 @@
 -- Supabase exposes service writes through the service_role JWT; we key those on the
 -- standard `role` claim so this works against vanilla Postgres + our test auth shim too.
 
-set search_path = nexocrypto, public;
+set search_path = chalybcrypto, public;
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- helper: which role is the current JWT?  (auth.role() exists on Supabase; fall
 -- back to current_setting for local Postgres.)
 -- ──────────────────────────────────────────────────────────────────────────────
-create or replace function nexocrypto.current_role_name() returns text
+create or replace function chalybcrypto.current_role_name() returns text
 language sql stable as $$
   select coalesce(
     nullif(current_setting('request.jwt.claim.role', true), ''),
@@ -110,13 +110,13 @@ alter table ai_evaluations enable row level security;
 create policy ai_evaluations_via_trade on ai_evaluations
   using (
     exists (
-      select 1 from nexocrypto.trades t
+      select 1 from chalybcrypto.trades t
       where t.id = ai_evaluations.trade_id and t.user_id = auth.uid()
     )
   )
   with check (
     exists (
-      select 1 from nexocrypto.trades t
+      select 1 from chalybcrypto.trades t
       where t.id = ai_evaluations.trade_id and t.user_id = auth.uid()
     )
   );
@@ -129,15 +129,15 @@ alter table fee_schedules enable row level security;
 create policy fee_schedules_read on fee_schedules
   for select using (auth.uid() is not null);
 create policy fee_schedules_write on fee_schedules
-  for all using (nexocrypto.current_role_name() = 'service_role')
-  with check (nexocrypto.current_role_name() = 'service_role');
+  for all using (chalybcrypto.current_role_name() = 'service_role')
+  with check (chalybcrypto.current_role_name() = 'service_role');
 
 alter table strategies enable row level security;
 create policy strategies_read on strategies
   for select using (auth.uid() is not null);
 create policy strategies_write on strategies
-  for all using (nexocrypto.current_role_name() = 'service_role')
-  with check (nexocrypto.current_role_name() = 'service_role');
+  for all using (chalybcrypto.current_role_name() = 'service_role')
+  with check (chalybcrypto.current_role_name() = 'service_role');
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- global context snapshots — readable to any authed user, service-role writes
@@ -148,19 +148,19 @@ alter table market_snapshots enable row level security;
 create policy market_snapshots_read on market_snapshots
   for select using (auth.uid() is not null);
 create policy market_snapshots_write on market_snapshots
-  for all using (nexocrypto.current_role_name() = 'service_role')
-  with check (nexocrypto.current_role_name() = 'service_role');
+  for all using (chalybcrypto.current_role_name() = 'service_role')
+  with check (chalybcrypto.current_role_name() = 'service_role');
 
 alter table coinmarketcap_snapshots enable row level security;
 create policy coinmarketcap_snapshots_read on coinmarketcap_snapshots
   for select using (auth.uid() is not null);
 create policy coinmarketcap_snapshots_write on coinmarketcap_snapshots
-  for all using (nexocrypto.current_role_name() = 'service_role')
-  with check (nexocrypto.current_role_name() = 'service_role');
+  for all using (chalybcrypto.current_role_name() = 'service_role')
+  with check (chalybcrypto.current_role_name() = 'service_role');
 
 alter table coinglass_snapshots enable row level security;
 create policy coinglass_snapshots_read on coinglass_snapshots
   for select using (auth.uid() is not null);
 create policy coinglass_snapshots_write on coinglass_snapshots
-  for all using (nexocrypto.current_role_name() = 'service_role')
-  with check (nexocrypto.current_role_name() = 'service_role');
+  for all using (chalybcrypto.current_role_name() = 'service_role')
+  with check (chalybcrypto.current_role_name() = 'service_role');

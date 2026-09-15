@@ -18,7 +18,7 @@ import pytest
 import websockets
 from websockets.asyncio.server import serve
 
-from nexocrypto_connectors.bitunix.ws import (
+from chalybcrypto_connectors.bitunix.ws import (
     BitunixDepthBooksStream,
     BitunixPublicWS,
     Channel,

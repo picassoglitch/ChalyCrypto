@@ -3,13 +3,13 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nexocrypto-engine"
+name = "chalybcrypto-engine"
 version = "0.0.1"
-description = "Deterministic Strategy + Risk engines for NexoCrypto. No LLMs in the execution path."
+description = "Deterministic Strategy + Risk engines for ChalybCrypto. No LLMs in the execution path."
 requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.7,<3",
-  "nexocrypto-shared",
+  "chalybcrypto-shared",
 ]
 
 [tool.setuptools.packages.find]

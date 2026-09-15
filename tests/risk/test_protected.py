@@ -14,15 +14,15 @@ from decimal import Decimal
 
 import pytest
 
-from nexocrypto_engine.risk import PositionState
-from nexocrypto_engine.risk.protected import (
+from chalybcrypto_engine.risk import PositionState
+from chalybcrypto_engine.risk.protected import (
     advance_protected_floor,
     breakeven_stop_price,
     gross_unrealized_pnl,
     net_unrealized_pnl,
     should_trigger_protected_exit,
 )
-from nexocrypto_shared import MarginType, Side
+from chalybcrypto_shared import MarginType, Side
 
 from ._helpers import make_profile
 

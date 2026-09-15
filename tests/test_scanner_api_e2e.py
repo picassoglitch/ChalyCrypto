@@ -10,13 +10,13 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from nexocrypto_api.deps import set_store_for_tests
-from nexocrypto_api.main import app
-from nexocrypto_api.pg_store import PgStore
-from nexocrypto_engine.risk import StrategyStats
-from nexocrypto_engine.strategy import EmaAdxTrendParams, EmaAdxTrendStrategy
-from nexocrypto_worker import scan_once
-from nexocrypto_shared import Kline, Mode
+from chalybcrypto_api.deps import set_store_for_tests
+from chalybcrypto_api.main import app
+from chalybcrypto_api.pg_store import PgStore
+from chalybcrypto_engine.risk import StrategyStats
+from chalybcrypto_engine.strategy import EmaAdxTrendParams, EmaAdxTrendStrategy
+from chalybcrypto_worker import scan_once
+from chalybcrypto_shared import Kline, Mode
 
 from tests.strategy._helpers import flat_series, pullback_then_resume_uptrend
 

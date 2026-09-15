@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from nexocrypto_engine.risk import InMemoryIdempotencyStore
+from chalybcrypto_engine.risk import InMemoryIdempotencyStore
 
 
 async def test_acquire_succeeds_first_then_fails_until_ttl_expires():

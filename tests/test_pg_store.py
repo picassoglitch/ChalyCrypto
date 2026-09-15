@@ -13,8 +13,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from nexocrypto_api.pg_store import PgStore
-from nexocrypto_shared import (
+from chalybcrypto_api.pg_store import PgStore
+from chalybcrypto_shared import (
     FeeSchedule,
     MarginType,
     Mode,

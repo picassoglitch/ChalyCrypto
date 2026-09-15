@@ -1,22 +1,22 @@
-"""Admin endpoints — tenant provisioning + status (Nexo AI integration backbone)."""
+"""Admin endpoints — tenant provisioning + status (Chalyb integration backbone)."""
 
 from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
 
-from nexocrypto_api.deps import set_store_for_tests
-from nexocrypto_api.main import app
-from nexocrypto_api.store import InMemoryStore
+from chalybcrypto_api.deps import set_store_for_tests
+from chalybcrypto_api.main import app
+from chalybcrypto_api.store import InMemoryStore
 
 
-ADMIN_TOKEN = "test-nexo-ai-admin-token"
+ADMIN_TOKEN = "test-chalyb-admin-token"
 
 
 @pytest.fixture
 def client(monkeypatch):
-    monkeypatch.setenv("NEXO_AI_ADMIN_TOKEN", ADMIN_TOKEN)
-    monkeypatch.delenv("NEXOCRYPTO_AUTH", raising=False)  # user routes stay in stub
+    monkeypatch.setenv("CHALYB_ADMIN_TOKEN", ADMIN_TOKEN)
+    monkeypatch.delenv("CHALYBCRYPTO_AUTH", raising=False)  # user routes stay in stub
     store = InMemoryStore()
     set_store_for_tests(store)
     with TestClient(app) as c:
@@ -92,7 +92,7 @@ def test_provision_rejects_wrong_admin_token(client):
 
 
 def test_admin_token_unset_returns_500(client, monkeypatch):
-    monkeypatch.delenv("NEXO_AI_ADMIN_TOKEN", raising=False)
+    monkeypatch.delenv("CHALYB_ADMIN_TOKEN", raising=False)
     c, _ = client
     r = c.post(
         "/api/admin/tenants",
@@ -100,7 +100,7 @@ def test_admin_token_unset_returns_500(client, monkeypatch):
         json={"external_user_id": "x", "email": "x@x", "tier": "free"},
     )
     assert r.status_code == 500
-    assert "NEXO_AI_ADMIN_TOKEN" in r.json()["detail"]
+    assert "CHALYB_ADMIN_TOKEN" in r.json()["detail"]
 
 
 # ── /api/admin/tenants/{id}/status — pause/resume ─────────────────────────

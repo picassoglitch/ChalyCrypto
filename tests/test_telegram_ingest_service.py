@@ -7,7 +7,7 @@ from typing import Callable
 
 import pytest
 
-from nexocrypto_telegram_ingest import (
+from chalybcrypto_telegram_ingest import (
     IdentitySessionVault,
     IncomingMessage,
     TelegramIngestService,

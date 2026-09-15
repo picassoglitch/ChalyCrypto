@@ -10,7 +10,7 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 
-from nexocrypto_api.main import app
+from chalybcrypto_api.main import app
 
 
 _TEST_SECRET = "test-jwt-secret-do-not-use-in-prod"
@@ -19,15 +19,15 @@ USER = uuid4()
 
 @pytest.fixture
 def stub_client(monkeypatch):
-    monkeypatch.setenv("NEXOCRYPTO_AUTH", "stub")
+    monkeypatch.setenv("CHALYBCRYPTO_AUTH", "stub")
     with TestClient(app) as c:
         yield c
 
 
 @pytest.fixture
 def jwt_client(monkeypatch):
-    monkeypatch.setenv("NEXOCRYPTO_AUTH", "jwt")
-    monkeypatch.setenv("NEXOCRYPTO_SUPABASE_JWT_SECRET", _TEST_SECRET)
+    monkeypatch.setenv("CHALYBCRYPTO_AUTH", "jwt")
+    monkeypatch.setenv("CHALYBCRYPTO_SUPABASE_JWT_SECRET", _TEST_SECRET)
     with TestClient(app) as c:
         yield c
 
@@ -149,8 +149,8 @@ def test_jwt_mode_rejects_non_uuid_sub(jwt_client):
 
 def test_jwt_mode_with_missing_server_secret_returns_500(jwt_client, monkeypatch):
     """If the operator misconfigures the deploy, fail loudly."""
-    monkeypatch.delenv("NEXOCRYPTO_SUPABASE_JWT_SECRET", raising=False)
-    monkeypatch.delenv("NEXOCRYPTO_SUPABASE_URL", raising=False)
+    monkeypatch.delenv("CHALYBCRYPTO_SUPABASE_JWT_SECRET", raising=False)
+    monkeypatch.delenv("CHALYBCRYPTO_SUPABASE_URL", raising=False)
     token = _sign(
         {
             "sub": str(USER),
@@ -161,8 +161,8 @@ def test_jwt_mode_with_missing_server_secret_returns_500(jwt_client, monkeypatch
     r = jwt_client.get("/api/signals", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 500
     # Detail names BOTH env vars now (either is acceptable, neither = misconfig).
-    assert "NEXOCRYPTO_SUPABASE_URL" in r.json()["detail"]
-    assert "NEXOCRYPTO_SUPABASE_JWT_SECRET" in r.json()["detail"]
+    assert "CHALYBCRYPTO_SUPABASE_URL" in r.json()["detail"]
+    assert "CHALYBCRYPTO_SUPABASE_JWT_SECRET" in r.json()["detail"]
 
 
 # ── new: JWKS path (preferred for current Supabase projects) ────────────
@@ -191,14 +191,14 @@ def jwks_client_and_keys(monkeypatch):
         def get_signing_key_from_jwt(self, token):
             return _FakeSigningKey(public_key)
 
-    monkeypatch.setattr("nexocrypto_api.auth.PyJWKClient", _FakeJWKSClient)
+    monkeypatch.setattr("chalybcrypto_api.auth.PyJWKClient", _FakeJWKSClient)
     # Also bust the lru_cache so a previous test's client doesn't stick.
-    import nexocrypto_api.auth as auth_mod
+    import chalybcrypto_api.auth as auth_mod
     auth_mod._jwks_client_for.cache_clear()  # type: ignore[attr-defined]
 
-    monkeypatch.setenv("NEXOCRYPTO_AUTH", "jwt")
-    monkeypatch.setenv("NEXOCRYPTO_SUPABASE_URL", "https://example.supabase.co")
-    monkeypatch.delenv("NEXOCRYPTO_SUPABASE_JWT_SECRET", raising=False)
+    monkeypatch.setenv("CHALYBCRYPTO_AUTH", "jwt")
+    monkeypatch.setenv("CHALYBCRYPTO_SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.delenv("CHALYBCRYPTO_SUPABASE_JWT_SECRET", raising=False)
 
     with TestClient(app) as c:
         yield c, private_key

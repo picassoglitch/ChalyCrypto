@@ -15,7 +15,7 @@ from decimal import Decimal
 
 import pytest
 
-from nexocrypto_connectors.base import (
+from chalybcrypto_connectors.base import (
     Balance,
     ConnectorError,
     ExchangeConnector,
@@ -24,13 +24,13 @@ from nexocrypto_connectors.base import (
     OrderResult,
     PositionInfo,
 )
-from nexocrypto_engine.execution import (
+from chalybcrypto_engine.execution import (
     ExecutionEngine,
     ExecutionStatus,
     order_request_from_decision,
 )
-from nexocrypto_engine.risk import InMemoryIdempotencyStore, RiskEngine
-from nexocrypto_shared import Mode, OrderType, Side
+from chalybcrypto_engine.risk import InMemoryIdempotencyStore, RiskEngine
+from chalybcrypto_shared import Mode, OrderType, Side
 
 from tests.risk._helpers import (
     NOW,
