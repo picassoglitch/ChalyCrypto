@@ -5,15 +5,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from nexocrypto_engine.backtest.fills import ConservativeFillModel
-from nexocrypto_engine.paper import PaperEngine, PaperTick
-from nexocrypto_engine.risk import InMemoryIdempotencyStore, RiskEngine, StrategyStats
-from nexocrypto_engine.risk.ev import EVInputs
-from nexocrypto_engine.strategy import (
+from chalybcrypto_engine.backtest.fills import ConservativeFillModel
+from chalybcrypto_engine.paper import PaperEngine, PaperTick
+from chalybcrypto_engine.risk import InMemoryIdempotencyStore, RiskEngine, StrategyStats
+from chalybcrypto_engine.risk.ev import EVInputs
+from chalybcrypto_engine.strategy import (
     EmaAdxTrendParams,
     EmaAdxTrendStrategy,
 )
-from nexocrypto_shared import FeeSchedule, MarketSnapshot
+from chalybcrypto_shared import FeeSchedule, MarketSnapshot
 
 from ._helpers import pullback_then_resume_uptrend, linear_trend
 
@@ -61,7 +61,7 @@ def _stats():
 
 
 def _account():
-    from nexocrypto_engine.risk import AccountState
+    from chalybcrypto_engine.risk import AccountState
 
     return AccountState(
         equity=Decimal("10000"),
@@ -73,7 +73,7 @@ def _account():
 
 
 def _profile():
-    from nexocrypto_shared import RiskProfile
+    from chalybcrypto_shared import RiskProfile
 
     return RiskProfile(
         name="test",

@@ -6,7 +6,7 @@
 -- before any exchange write happens. CLAUDE.md rule 8: every state change is
 -- idempotency-keyed.
 
-set search_path = nexocrypto, public;
+set search_path = chalybcrypto, public;
 
 create table if not exists approvals (
   id            uuid primary key default gen_random_uuid(),

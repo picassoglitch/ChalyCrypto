@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from nexocrypto_shared import (
+from chalybcrypto_shared import (
     FeeSchedule,
     Kline,
     MarginType,
@@ -181,7 +181,7 @@ def test_settings_loads_with_defaults(monkeypatch):
         pass
     s = Settings(_env_file=None)
     assert s.app_env == "local"
-    assert s.supabase_db_schema == "nexocrypto"
+    assert s.supabase_db_schema == "chalybcrypto"
     assert s.fee_bitunix_taker_bps == Decimal("6.0")
 
 

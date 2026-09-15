@@ -5,8 +5,8 @@ Commit at the end of each phase. The risk engine lands early because it's the sa
 
 Repo layout target:
 ```
-nexocrypto/
-├── CLAUDE.md  ARCHITECTURE.md  BUILD_PLAN.md  INTEGRATION_nexo-ai.md
+chalybcrypto/
+├── CLAUDE.md  ARCHITECTURE.md  BUILD_PLAN.md  INTEGRATION_chalyb.md
 ├── docker-compose.yml  .env.example
 ├── docs/knowledge/                 # your-own-words summaries of the attached docs
 ├── packages/shared/                # pydantic models, fee tables, enums, dedup hashing
@@ -18,7 +18,7 @@ nexocrypto/
 │   └── telegram_control/           # Bot API: notifications + inline-keyboard controls
 ├── connectors/                     # ExchangeConnector ABC + binance/lbank/bitunix + cmc
 ├── llm/                            # async Claude analyst + Qwen enrichment (out of hot path)
-├── web/                            # Next.js module (or mount into nexo-ai.world — see INTEGRATION)
+├── web/                            # Next.js module (or mount into chalyb.com — see INTEGRATION)
 └── supabase/                       # schema.sql, migrations, RLS policies
 ```
 
@@ -38,7 +38,7 @@ round-trip test passes.
 > /api/health, and docker-compose. Add a pytest that round-trips each model. Don't add trading logic."
 
 ## Phase 1 — Supabase schema + RLS
-**Goal:** `nexocrypto` schema from `supabase/schema.sql`, RLS on every table, migrations.
+**Goal:** `chalybcrypto` schema from `supabase/schema.sql`, RLS on every table, migrations.
 **Done when:** migrations apply clean; RLS test proves a user can't read another user's rows.
 
 > **Prompt:** "Apply supabase/schema.sql as migrations, add RLS policies keyed to auth.uid()/org for
@@ -106,15 +106,15 @@ daily digest) + optional Qwen enrichment — strictly out of the hot path.
 Claude explanations attach to trades without ever blocking a decision (kill the LLM service → trading
 still works).
 
-## Phase 7 — Setup wizard + dashboard (mounted in nexo-ai.world)
+## Phase 7 — Setup wizard + dashboard (mounted in chalyb.com)
 **Goal:** wizard (Telegram connect → exchange keys → exchange select → CMC key → risk profile →
 mode select → notifications → **test all connections** → require paper before live). Dashboard:
 equity, balance, open/closed positions, unrealized/realized PnL, drawdown, win rate, profit factor,
 avg RR, PnL by exchange/strategy/Telegram-channel, active signals, **rejected signals with reason**,
 CMC scanner, ADX/trend scanner, human approval queue, Telegram + API connection status, logs.
-See `INTEGRATION_nexo-ai.md` for mounting it as an operator engine.
+See `INTEGRATION_chalyb.md` for mounting it as an operator engine.
 **Done when:** wizard blocks live mode until the paper-gate is satisfied; dashboard reads live via
-Supabase Realtime/SSE; everything is RBAC-gated inside nexo-ai.world.
+Supabase Realtime/SSE; everything is RBAC-gated inside chalyb.com.
 
 ## Phase 8 (later, gated) — Full-auto, multi-exchange live, long-tail strategies
 Only after Phases 0–7 are stable, paper-gates proven, and (for distribution) a compliance review.

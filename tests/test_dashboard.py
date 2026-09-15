@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from nexocrypto_api.main import app
+from chalybcrypto_api.main import app
 
 
 def test_root_redirects_to_dashboard():

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from cryptography.fernet import Fernet
 
-from nexocrypto_shared import InvalidToken, SecretsVault, vault_from_env
+from chalybcrypto_shared import InvalidToken, SecretsVault, vault_from_env
 
 
 # A fixed test key so the tests are deterministic. NEVER hardcode in prod code.
@@ -61,13 +61,13 @@ def test_decrypt_rejects_non_bytes():
 
 
 def test_vault_from_env_raises_clearly_when_unset(monkeypatch):
-    monkeypatch.delenv("NEXOCRYPTO_MASTER_ENCRYPTION_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="NEXOCRYPTO_MASTER_ENCRYPTION_KEY is unset"):
+    monkeypatch.delenv("CHALYBCRYPTO_MASTER_ENCRYPTION_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="CHALYBCRYPTO_MASTER_ENCRYPTION_KEY is unset"):
         vault_from_env()
 
 
 def test_vault_from_env_reads_configured_key(monkeypatch):
-    monkeypatch.setenv("NEXOCRYPTO_MASTER_ENCRYPTION_KEY", _TEST_KEY)
+    monkeypatch.setenv("CHALYBCRYPTO_MASTER_ENCRYPTION_KEY", _TEST_KEY)
     v = vault_from_env()
     # Round-trip proves the key was used.
     assert v.decrypt(v.encrypt("ok")) == "ok"

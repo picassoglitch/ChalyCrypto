@@ -1,9 +1,9 @@
--- 0001_init.sql — nexocrypto schema (tables only; RLS lives in 0002_rls.sql)
+-- 0001_init.sql — chalybcrypto schema (tables only; RLS lives in 0002_rls.sql)
 -- Run after auth.users exists. On Supabase it does natively; for local Postgres apply
 -- supabase/test_auth_shim.sql first.
 
-create schema if not exists nexocrypto;
-set search_path = nexocrypto, public;
+create schema if not exists chalybcrypto;
+set search_path = chalybcrypto, public;
 
 -- ── identity ──
 create table if not exists users (

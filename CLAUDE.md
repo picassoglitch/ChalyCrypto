@@ -1,6 +1,6 @@
-# CLAUDE.md — NexoCrypto build rules
+# CLAUDE.md — ChalyCrypto build rules
 
-You are building **NexoCrypto**, a **futures-only** crypto trading engine. Read `ARCHITECTURE.md`
+You are building **ChalyCrypto**, a **futures-only** crypto trading engine. Read `ARCHITECTURE.md`
 and `BUILD_PLAN.md` before writing code. The user has also attached source documents (trading books
 and Spanish-language strategy/risk PDFs) — treat those as the **trading-knowledge source of truth**
 for strategy logic, risk concepts, and terminology.
@@ -35,7 +35,7 @@ copy long passages verbatim.
 ## Tech + conventions
 - Python 3.12, FastAPI, Pydantic v2, async where it helps, type hints everywhere, `ruff` + `black`.
 - Next.js 15 + TypeScript + Tailwind v4, **Spanish-first** via `next-intl` (LATAM audience), `en` fallback.
-- Supabase Postgres, dedicated `nexocrypto` schema, **RLS on every table**.
+- Supabase Postgres, dedicated `chalybcrypto` schema, **RLS on every table**.
 - Redis + Celery (broker + beat). Charts: TradingView Lightweight Charts.
 - Tests required for: risk engine, EV gate, fee math, liquidation estimator, protected-profit stop,
   signal parser. Use `pytest`. A phase isn't "done" until its tests pass (see BUILD_PLAN acceptance).
@@ -62,5 +62,5 @@ copy long passages verbatim.
 
 ## What "done" means for the MVP
 Backtest → Paper → Semi-auto on **one** exchange (Bitunix), 2–3 strategies, full risk engine,
-Telegram ingest + control bot, dashboard mounted inside nexo-ai.world, Docker Compose up locally,
+Telegram ingest + control bot, dashboard mounted inside chalyb.com, Docker Compose up locally,
 all listed tests green. Full-auto, multi-exchange live, and the long-tail strategies come after.

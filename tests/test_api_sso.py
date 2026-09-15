@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from nexocrypto_api.main import app
+from chalybcrypto_api.main import app
 
 
 _SSO_SECRET = "test-shared-sso-secret-must-be-long-enough-32b"
@@ -29,9 +29,9 @@ def _sign_launch_token(payload: dict, *, secret: str = _SSO_SECRET) -> str:
 
 @pytest.fixture
 def client(monkeypatch):
-    monkeypatch.setenv("NEXO_AI_SSO_SECRET", _SSO_SECRET)
-    monkeypatch.setenv("NEXOCRYPTO_AUTH", "jwt")  # so the session cookie is honored
-    monkeypatch.setenv("NEXOCRYPTO_ENV", "dev")    # cookie not Secure, easier to assert
+    monkeypatch.setenv("CHALYB_SSO_SECRET", _SSO_SECRET)
+    monkeypatch.setenv("CHALYBCRYPTO_AUTH", "jwt")  # so the session cookie is honored
+    monkeypatch.setenv("CHALYBCRYPTO_ENV", "dev")    # cookie not Secure, easier to assert
     with TestClient(app) as c:
         yield c
 
@@ -111,7 +111,7 @@ def test_sso_rejects_missing_user_id(client):
 
 
 def test_sso_with_missing_server_secret_returns_500(client, monkeypatch):
-    monkeypatch.delenv("NEXO_AI_SSO_SECRET", raising=False)
+    monkeypatch.delenv("CHALYB_SSO_SECRET", raising=False)
     token = _sign_launch_token(
         {"user_id": USER_ID, "email": "u@x", "exp": int(time.time()) + 60}
     )

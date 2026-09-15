@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nexocrypto-shared"
+name = "chalybcrypto-shared"
 version = "0.0.1"
-description = "Shared contracts (models, enums, config) for NexoCrypto."
+description = "Shared contracts (models, enums, config) for ChalyCrypto."
 requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.7,<3",

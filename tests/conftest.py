@@ -22,7 +22,7 @@ SUPABASE_DIR = REPO_ROOT / "supabase"
 
 def _admin_dsn() -> str | None:
     """Superuser DSN used to provision a throwaway test database."""
-    return os.environ.get("NEXOCRYPTO_TEST_PG_ADMIN_DSN") or os.environ.get(
+    return os.environ.get("CHALYBCRYPTO_TEST_PG_ADMIN_DSN") or os.environ.get(
         "TEST_PG_ADMIN_DSN"
     ) or "postgresql://postgres@127.0.0.1:5432/postgres"
 
@@ -44,10 +44,10 @@ def db_dsn() -> str:
     admin = _admin_dsn()
     if not _pg_reachable(admin):
         pytest.skip(
-            f"No Postgres reachable at {admin}. Start one or set NEXOCRYPTO_TEST_PG_ADMIN_DSN."
+            f"No Postgres reachable at {admin}. Start one or set CHALYBCRYPTO_TEST_PG_ADMIN_DSN."
         )
 
-    db_name = f"nexocrypto_test_{uuid4().hex[:12]}"
+    db_name = f"chalybcrypto_test_{uuid4().hex[:12]}"
     with psycopg.connect(admin, autocommit=True) as conn:
         conn.execute(f'create database "{db_name}"')
 

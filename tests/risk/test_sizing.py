@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from nexocrypto_engine.risk import RejectReason
-from nexocrypto_engine.risk.sizing import size_position
+from chalybcrypto_engine.risk import RejectReason
+from chalybcrypto_engine.risk.sizing import size_position
 
 from ._helpers import make_account, make_profile, make_signal
 

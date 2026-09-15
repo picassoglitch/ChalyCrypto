@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from nexocrypto_engine.strategy import EmaAdxTrendParams, EmaAdxTrendStrategy
-from nexocrypto_worker import scan_once
-from nexocrypto_shared import Kline
+from chalybcrypto_engine.strategy import EmaAdxTrendParams, EmaAdxTrendStrategy
+from chalybcrypto_worker import scan_once
+from chalybcrypto_shared import Kline
 
 from tests.strategy._helpers import flat_series, pullback_then_resume_uptrend
 

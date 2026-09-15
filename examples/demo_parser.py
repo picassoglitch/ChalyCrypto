@@ -8,7 +8,7 @@ try:
 except AttributeError:
     pass
 
-from nexocrypto_telegram_ingest import parse_signal
+from chalybcrypto_telegram_ingest import parse_signal
 
 
 SAMPLES = [

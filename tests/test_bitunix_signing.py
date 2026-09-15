@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import hashlib
 
-from nexocrypto_connectors.bitunix.auth import (
+from chalybcrypto_connectors.bitunix.auth import (
     build_signed_headers,
     canonical_body,
     canonical_query,

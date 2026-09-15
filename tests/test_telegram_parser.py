@@ -5,8 +5,8 @@ from decimal import Decimal
 
 import pytest
 
-from nexocrypto_shared import MarginType, Side
-from nexocrypto_telegram_ingest import parse_signal
+from chalybcrypto_shared import MarginType, Side
+from chalybcrypto_telegram_ingest import parse_signal
 
 
 NOW = datetime(2026, 6, 6, 12, 0, tzinfo=timezone.utc)

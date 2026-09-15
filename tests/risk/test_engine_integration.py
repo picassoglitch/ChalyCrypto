@@ -10,12 +10,12 @@ from decimal import Decimal
 
 import pytest
 
-from nexocrypto_engine.risk import (
+from chalybcrypto_engine.risk import (
     InMemoryIdempotencyStore,
     RejectReason,
     RiskEngine,
 )
-from nexocrypto_shared import Mode
+from chalybcrypto_shared import Mode
 
 from ._helpers import (
     NOW,

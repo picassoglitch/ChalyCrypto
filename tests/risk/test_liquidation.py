@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from nexocrypto_engine.risk.liquidation import (
+from chalybcrypto_engine.risk.liquidation import (
     liquidation_distance_bps,
     liquidation_price,
     passes_min_distance,
 )
-from nexocrypto_shared import Side
+from chalybcrypto_shared import Side
 
 
 def test_long_liq_below_entry_by_approximately_1_over_lev():

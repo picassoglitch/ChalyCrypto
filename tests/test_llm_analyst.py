@@ -11,12 +11,12 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from nexocrypto_llm import (
+from chalybcrypto_llm import (
     ClaudeAnalyst,
     ContinueBriefing,
     DailyDigest,
 )
-from nexocrypto_shared import (
+from chalybcrypto_shared import (
     MarginType,
     MarketSnapshot,
     Mode,
@@ -188,7 +188,7 @@ async def test_returns_none_on_transport_error():
 # ── architectural guarantee: analyst not imported by hot-path packages ───
 
 
-def test_engine_does_not_import_nexocrypto_llm():
+def test_engine_does_not_import_chalybcrypto_llm():
     """CLAUDE.md rule 2: no LLM in the execution path. The engine package must not
     import the analyst — that's the only structural guarantee no one accidentally
     awaits Claude before authorizing a fill.
@@ -200,13 +200,13 @@ def test_engine_does_not_import_nexocrypto_llm():
 
     code = (
         "import sys\n"
-        "import nexocrypto_engine\n"
-        "import nexocrypto_engine.risk\n"
-        "import nexocrypto_engine.strategy\n"
-        "import nexocrypto_engine.backtest\n"
-        "import nexocrypto_engine.paper\n"
-        "assert 'nexocrypto_llm' not in sys.modules, "
-        "'nexocrypto_engine pulls in nexocrypto_llm transitively!'\n"
+        "import chalybcrypto_engine\n"
+        "import chalybcrypto_engine.risk\n"
+        "import chalybcrypto_engine.strategy\n"
+        "import chalybcrypto_engine.backtest\n"
+        "import chalybcrypto_engine.paper\n"
+        "assert 'chalybcrypto_llm' not in sys.modules, "
+        "'chalybcrypto_engine pulls in chalybcrypto_llm transitively!'\n"
     )
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert r.returncode == 0, f"engine imports LLM:\n{r.stderr}"

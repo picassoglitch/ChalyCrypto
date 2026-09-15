@@ -14,16 +14,16 @@ from uuid import UUID
 
 import pytest
 
-from nexocrypto_api.execution_coordinator import handle_approval_approve
-from nexocrypto_api.store import InMemoryStore
-from nexocrypto_engine.risk import InMemoryIdempotencyStore
-from nexocrypto_connectors.base import (
+from chalybcrypto_api.execution_coordinator import handle_approval_approve
+from chalybcrypto_api.store import InMemoryStore
+from chalybcrypto_engine.risk import InMemoryIdempotencyStore
+from chalybcrypto_connectors.base import (
     ConnectorError,
     ExchangeConnector,
     OrderRequest,
     OrderResult,
 )
-from nexocrypto_shared import (
+from chalybcrypto_shared import (
     MarginType,
     Mode,
     Side,

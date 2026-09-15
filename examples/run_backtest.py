@@ -14,10 +14,10 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 
-from nexocrypto_connectors import BinanceDataConnector
-from nexocrypto_engine.backtest import Backtester, ConservativeFillModel
-from nexocrypto_engine.strategy import EmaAdxTrendParams, EmaAdxTrendStrategy
-from nexocrypto_shared import FeeSchedule
+from chalybcrypto_connectors import BinanceDataConnector
+from chalybcrypto_engine.backtest import Backtester, ConservativeFillModel
+from chalybcrypto_engine.strategy import EmaAdxTrendParams, EmaAdxTrendStrategy
+from chalybcrypto_shared import FeeSchedule
 from datetime import datetime, timezone
 
 

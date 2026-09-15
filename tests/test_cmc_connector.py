@@ -10,7 +10,7 @@ from typing import Any, Callable
 import httpx
 import pytest
 
-from nexocrypto_connectors import CmcConnector, ConnectorError
+from chalybcrypto_connectors import CmcConnector, ConnectorError
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "cmc"

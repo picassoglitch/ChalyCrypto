@@ -2,15 +2,15 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from nexocrypto_engine.risk import RejectReason
-from nexocrypto_engine.risk.ev import (
+from chalybcrypto_engine.risk import RejectReason
+from chalybcrypto_engine.risk.ev import (
     EVInputs,
     ev_net_bps,
     ev_passes,
     expected_funding_bps,
     round_trip_fees_bps,
 )
-from nexocrypto_shared import FeeSchedule, Mode
+from chalybcrypto_shared import FeeSchedule, Mode
 
 from ._helpers import NOW, make_ev_inputs, make_stats
 
