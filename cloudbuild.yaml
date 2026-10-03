@@ -47,7 +47,7 @@ steps:
       - ${_REGION}-docker.pkg.dev/${_PROJECT}/${_REPO}/${_SERVICE}:${SHORT_SHA}
       - -t
       - ${_REGION}-docker.pkg.dev/${_PROJECT}/${_REPO}/${_SERVICE}:latest
-      # The API image needs packages/shared, connectors and services/engine
+      # The API image needs packages/shared, packages/hub, connectors and services/engine
       # too, so the build context is the repo root and the Dockerfile is
       # selected explicitly.
       - -f

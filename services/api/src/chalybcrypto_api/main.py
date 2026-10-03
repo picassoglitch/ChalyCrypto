@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -9,7 +11,11 @@ from fastapi.responses import FileResponse, RedirectResponse
 
 from chalybcrypto_shared import get_settings
 
+from chalybcrypto_hub import run_drain_loop
+
 from .admin import admin_router
+from .consumption import get_hub_client
+from .deps import get_store
 from .routes import router as api_router
 from .sso import sso_router
 
@@ -24,7 +30,30 @@ def _cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
-app = FastAPI(title="ChalyCrypto API", version="0.0.1")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """Drain the usage outbox to the Chalyb hub in the background. Only when the
+    hub is configured (CHALYB_BASE_URL) and the store has an outbox; set
+    CHALYBCRYPTO_USAGE_DRAIN=0 to run the drainer elsewhere (e.g. the worker)."""
+    hub = get_hub_client()
+    store = get_store()
+    task: asyncio.Task | None = None
+    stop = asyncio.Event()
+    enabled = os.environ.get("CHALYBCRYPTO_USAGE_DRAIN", "1").strip() not in ("0", "false", "no")
+    if enabled and hub is not None and hasattr(store, "claim_usage_outbox"):
+        interval = float(os.environ.get("CHALYBCRYPTO_USAGE_DRAIN_INTERVAL", "15"))
+        task = asyncio.create_task(
+            run_drain_loop(store, hub, interval_seconds=interval, stop=stop)  # type: ignore[arg-type]
+        )
+    try:
+        yield
+    finally:
+        if task is not None:
+            stop.set()
+            await task
+
+
+app = FastAPI(title="ChalyCrypto API", version="0.0.1", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),

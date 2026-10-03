@@ -7,15 +7,18 @@ Rejected/refused signals always carry the reason — CLAUDE.md "keep the UI hone
 from __future__ import annotations
 
 import asyncio
+import math
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
+from chalybcrypto_hub import HubClient
 from chalybcrypto_shared import FeeSchedule, Mode, RiskProfile, vault_from_env
 
+from .consumption import admitted, get_hub_client
 from .deps import get_current_user_id, get_store
 from .store import ApiStore
 
@@ -276,21 +279,48 @@ class BacktestRequest(BaseModel):
     bars: int = 1500
 
 
+# Hub admission estimate for a backtest, in billable tokens. Backtests spend
+# compute, not LLM tokens: assume ~20 ms of standard-lane wall time per bar at
+# 88 µ$/s (consumption contract compute.seconds table), 4 µ$ per billable token.
+_BACKTEST_SECONDS_PER_BAR = 0.02
+_STANDARD_LANE_MICROS_PER_SECOND = 88
+
+
+def _backtest_est_tokens(bars: int) -> int:
+    micros = max(1, bars) * _BACKTEST_SECONDS_PER_BAR * _STANDARD_LANE_MICROS_PER_SECOND
+    return max(1, math.ceil(micros / 4))
+
+
 @router.post("/backtests", status_code=status.HTTP_202_ACCEPTED)
 async def queue_backtest(
     body: BacktestRequest,
-    _user_id: UUID = Depends(get_current_user_id),
+    user_id: UUID = Depends(get_current_user_id),
+    hub: HubClient | None = Depends(get_hub_client),
 ) -> dict:
-    # The actual job is enqueued onto Celery in Phase 6 worker integration.
-    # For now we return the job description so the dashboard can show 'queued'.
-    return {
-        "status": "queued",
-        "strategy": body.strategy,
-        "pair": body.pair,
-        "timeframe": body.timeframe,
-        "bars": body.bars,
-        "optimistic": True,  # CLAUDE.md: backtests are always labelled OPTIMISTIC
-    }
+    # Hub admission (class "job") before any work; refusal → 402/429/413 with the
+    # reason, hub down → 503 (fail closed). Settled in admitted()'s finally.
+    job_id = f"backtest_{uuid4().hex}"
+    async with admitted(
+        hub,
+        user_id=user_id,
+        operation="backtests.run",
+        external_job_id=job_id,
+        est_tokens=_backtest_est_tokens(body.bars),
+    ) as adm:
+        # The actual job is enqueued onto Celery in Phase 6 worker integration.
+        # For now we return the job description so the dashboard can show 'queued'.
+        # When the runner lands, settle must move to the worker (pass reservation_id).
+        return {
+            "status": "queued",
+            "job_id": job_id,
+            "reservation_id": adm.reservation_id,
+            "lane": adm.lane,
+            "strategy": body.strategy,
+            "pair": body.pair,
+            "timeframe": body.timeframe,
+            "bars": body.bars,
+            "optimistic": True,  # CLAUDE.md: backtests are always labelled OPTIMISTIC
+        }
 
 
 # ── SSE telemetry (skeleton — real subscription is wired in Phase 6 worker) ──

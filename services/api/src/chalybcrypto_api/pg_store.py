@@ -748,6 +748,140 @@ class PgStore:
         finally:
             await conn.close()
 
+    # ── usage outbox (Chalyb hub metering; see chalybcrypto_hub.outbox) ────
+
+    async def enqueue_usage_events(self, events: list) -> int:
+        """Persist UsageEvents for the drainer. Idempotent on source_id."""
+        if not events:
+            return 0
+        conn = await self._conn()
+        try:
+            inserted = 0
+            async with conn.transaction():
+                for e in events:
+                    cur = await conn.execute(
+                        """
+                        insert into chalybcrypto.usage_outbox
+                          (source_id, external_user_id, reservation_id, event)
+                        values (%s, %s, %s, %s::jsonb)
+                        on conflict (source_id) do nothing
+                        """,
+                        (
+                            e.source_id,
+                            e.external_user_id,
+                            e.reservation_id,
+                            json.dumps(e.to_wire()),
+                        ),
+                    )
+                    inserted += cur.rowcount or 0
+            return inserted
+        finally:
+            await conn.close()
+
+    async def claim_usage_outbox(self, *, limit: int, lease_seconds: int) -> list:
+        """Lease up to `limit` due pending rows. The lease is just next_attempt_at
+        pushed into the future, so a crashed drainer's rows come back on their own."""
+        from chalybcrypto_hub import OutboxRow
+
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                """
+                update chalybcrypto.usage_outbox o
+                   set next_attempt_at = now() + make_interval(secs => %s)
+                 where o.id in (
+                   select id from chalybcrypto.usage_outbox
+                    where status = 'pending' and next_attempt_at <= now()
+                    order by id
+                    limit %s
+                    for update skip locked
+                 )
+                returning o.id, o.external_user_id, o.event, o.attempts
+                """,
+                (lease_seconds, limit),
+            )
+            rows = await cur.fetchall()
+            return [
+                OutboxRow(
+                    id=r["id"],
+                    external_user_id=r["external_user_id"],
+                    event=r["event"],
+                    attempts=r["attempts"],
+                )
+                for r in sorted(rows, key=lambda r: r["id"])
+            ]
+        finally:
+            await conn.close()
+
+    async def mark_usage_sent(self, ids: list) -> None:
+        if not ids:
+            return
+        conn = await self._conn()
+        try:
+            await conn.execute(
+                """
+                update chalybcrypto.usage_outbox
+                   set status = 'sent', sent_at = now(), last_error = null
+                 where id = any(%s)
+                """,
+                (list(ids),),
+            )
+        finally:
+            await conn.close()
+
+    async def mark_usage_retry(self, retries: list, *, error: str) -> None:
+        if not retries:
+            return
+        conn = await self._conn()
+        try:
+            async with conn.transaction():
+                for row_id, delay in retries:
+                    await conn.execute(
+                        """
+                        update chalybcrypto.usage_outbox
+                           set attempts = attempts + 1,
+                               next_attempt_at = now() + make_interval(secs => %s),
+                               last_error = %s
+                         where id = %s and status = 'pending'
+                        """,
+                        (float(delay), error[:2000], row_id),
+                    )
+        finally:
+            await conn.close()
+
+    async def mark_usage_dead(self, ids: list, *, error: str) -> None:
+        if not ids:
+            return
+        conn = await self._conn()
+        try:
+            await conn.execute(
+                """
+                update chalybcrypto.usage_outbox
+                   set status = 'dead', attempts = attempts + 1, last_error = %s
+                 where id = any(%s)
+                """,
+                (error[:2000], list(ids)),
+            )
+        finally:
+            await conn.close()
+
+    async def list_usage_outbox(self, *, status: str | None = None) -> list[dict]:
+        """Operator/test view of the outbox."""
+        conn = await self._conn()
+        try:
+            if status is None:
+                cur = await conn.execute(
+                    "select * from chalybcrypto.usage_outbox order by id"
+                )
+            else:
+                cur = await conn.execute(
+                    "select * from chalybcrypto.usage_outbox where status = %s order by id",
+                    (status,),
+                )
+            return [self._json_safe(r) for r in await cur.fetchall()]
+        finally:
+            await conn.close()
+
     # ── helpers ────────────────────────────────────────────────────────────
 
     @staticmethod
