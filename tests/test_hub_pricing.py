@@ -45,8 +45,8 @@ def test_dated_model_id_is_normalized():
 def test_unknown_model_logs_error_and_uses_highest_rate(caplog):
     with caplog.at_level(logging.ERROR, logger="chalybcrypto_hub.pricing"):
         cost = llm_cost_usd_micros("claude-mystery-9", input_tokens=1000, output_tokens=1000)
-    # Highest known: $5 in / $25 out (opus-4-8 row) → 5000 + 25000
-    assert cost == 30_000
+    # Highest known: $10 in / $50 out (fable rows) → 10000 + 50000
+    assert cost == 60_000
     assert any("unknown model" in r.message for r in caplog.records)
     assert cost > llm_cost_usd_micros("claude-haiku-4-5", input_tokens=1000, output_tokens=1000)
 
@@ -76,3 +76,14 @@ def test_llm_tokens_event_shape():
     assert wire["reservation_id"] == "r1"
     assert wire["source_id"].startswith("llm_")
     assert isinstance(wire["cost_usd_micros"], int)
+
+
+def test_cache_reads_follow_anthropic_list_prices():
+    from decimal import Decimal
+
+    from chalybcrypto_hub.pricing import price_for
+
+    # Not a flat 0.1x: Opus 5.5 reads at $0.20, Fable 5.1 at $0.25.
+    assert price_for("claude-opus-5-5").cache_read_per_mtok == Decimal("0.20")
+    assert price_for("claude-fable-5-1").cache_read_per_mtok == Decimal("0.25")
+    assert price_for("claude-haiku-4-5").cache_read_per_mtok == Decimal("0.1")

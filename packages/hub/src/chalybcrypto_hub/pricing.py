@@ -32,9 +32,14 @@ class ModelPrice:
 
     input_per_mtok: Decimal
     output_per_mtok: Decimal
+    # Set where Anthropic's cache-read price isn't 0.1x input (Opus 5.5,
+    # Fable 5.1).
+    cache_read_override: Decimal | None = None
 
     @property
     def cache_read_per_mtok(self) -> Decimal:
+        if self.cache_read_override is not None:
+            return self.cache_read_override
         return self.input_per_mtok * CACHE_READ_MULTIPLIER
 
     @property
@@ -42,13 +47,22 @@ class ModelPrice:
         return self.input_per_mtok * CACHE_WRITE_MULTIPLIER
 
 
-# Anthropic first-party list prices. claude-haiku-4-5 is the only model the
-# analyst uses today; the others are here so a config change to a bigger model
-# is priced correctly instead of hitting the unknown-model fallback.
+# Anthropic first-party list prices (checked 2026-10-03). claude-haiku-4-5 is
+# the only model the analyst uses today; the others are here so a config
+# change to a bigger model is priced correctly instead of hitting the
+# unknown-model fallback.
 ANTHROPIC_PRICES: dict[str, ModelPrice] = {
     "claude-haiku-4-5": ModelPrice(Decimal("1"), Decimal("5")),
     "claude-sonnet-4-6": ModelPrice(Decimal("3"), Decimal("15")),
+    "claude-sonnet-5": ModelPrice(Decimal("2"), Decimal("10")),
+    "claude-sonnet-5-5": ModelPrice(Decimal("2"), Decimal("10")),
+    "claude-opus-4-6": ModelPrice(Decimal("5"), Decimal("25")),
+    "claude-opus-4-7": ModelPrice(Decimal("5"), Decimal("25")),
     "claude-opus-4-8": ModelPrice(Decimal("5"), Decimal("25")),
+    "claude-opus-5": ModelPrice(Decimal("5"), Decimal("25")),
+    "claude-opus-5-5": ModelPrice(Decimal("4"), Decimal("20"), Decimal("0.20")),
+    "claude-fable-5": ModelPrice(Decimal("10"), Decimal("50")),
+    "claude-fable-5-1": ModelPrice(Decimal("10"), Decimal("50"), Decimal("0.25")),
 }
 
 _DATED_SUFFIX = re.compile(r"-\d{8}$")
