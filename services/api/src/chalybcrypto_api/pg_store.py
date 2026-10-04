@@ -44,7 +44,8 @@ class PgStore:
     async def _ensure_user(self, conn: psycopg.AsyncConnection, user_id: UUID) -> None:
         """Insert user row if missing.
 
-        Two modes, switched on CHALYBCRYPTO_MANAGE_USERS (default 'true' for local/test):
+        Two modes, switched on CHALYBCRYPTO_MANAGE_USERS (default 'true' for local/test,
+        'false' on Cloud Run):
 
           true:  Insert into BOTH auth.users and chalybcrypto.users (on conflict no-op).
                  Required for local Postgres + tests where the auth shim is applied.
@@ -56,8 +57,10 @@ class PgStore:
         """
         import os  # local import keeps the constructor fast-path uncomplicated
 
+        # Never on Cloud Run: there auth.users belongs to Supabase Auth.
+        default = "false" if os.environ.get("K_SERVICE") else "true"
         manage_users = (
-            os.environ.get("CHALYBCRYPTO_MANAGE_USERS", "true").strip().lower()
+            os.environ.get("CHALYBCRYPTO_MANAGE_USERS", default).strip().lower()
             in ("1", "true", "yes", "on")
         )
         if manage_users:
