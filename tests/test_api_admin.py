@@ -154,3 +154,17 @@ def test_set_status_invalid_value_rejected(client):
         json={"status": "wrecked"},
     )
     assert r.status_code == 400
+
+
+@pytest.mark.parametrize(("hub_tier", "stored"), [("vip", "all_access"), ("partner", "pro")])
+def test_provision_maps_hub_tiers(client, hub_tier, stored):
+    """The hub sends its tiers lowercased (free | pro | partner | vip)."""
+    c, store = client
+    r = c.post(
+        "/api/admin/tenants",
+        headers=_auth(),
+        json={"external_user_id": f"hub-{hub_tier}", "email": "u@example.com", "tier": hub_tier},
+    )
+    assert r.status_code == 200
+    (row,) = [t for t in store._tenants if str(t["id"]) == r.json()["tenant_id"]]
+    assert row["tier"] == stored

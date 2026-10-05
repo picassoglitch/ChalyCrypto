@@ -17,7 +17,9 @@ Two modes for the dependency itself:
   - `jwt`  : verify a Bearer token (production)
   - `stub` : trust an `X-User-Id` header (local dev, tests, the dashboard demo)
 
-Selected by `CHALYBCRYPTO_AUTH` env var; default `stub`.
+Selected by `CHALYBCRYPTO_AUTH` env var; default `stub` locally. On Cloud Run
+(K_SERVICE set) the default is `jwt` and `stub` is refused: an unset variable
+must never let anyone pick a user with a header.
 
 CLAUDE.md rule 7: secrets never leave the server and never appear in logs.
 """
@@ -38,8 +40,17 @@ _JWT_AUDIENCE = "authenticated"  # Supabase default audience for user tokens
 _JWKS_ALGORITHMS = ["RS256", "ES256"]
 
 
+def _on_cloud_run() -> bool:
+    return bool(os.environ.get("K_SERVICE"))
+
+
 def _mode() -> str:
-    return (os.environ.get("CHALYBCRYPTO_AUTH") or _DEFAULT_MODE).strip().lower()
+    default = "jwt" if _on_cloud_run() else _DEFAULT_MODE
+    mode = (os.environ.get("CHALYBCRYPTO_AUTH") or default).strip().lower()
+    if mode != "jwt" and _on_cloud_run():
+        # Fail closed (CLAUDE.md rule 3 spirit): never trust X-User-Id in a deployment.
+        raise HTTPException(status_code=503, detail="auth misconfigured")
+    return mode
 
 
 @lru_cache(maxsize=1)
