@@ -99,6 +99,7 @@ class InMemoryStore:
         ]
         self._connections: list[dict] = []
         self._tenants: list[dict] = []
+        self._usage_outbox: list[dict] = []
 
     async def list_signals(self, *, user_id: UUID, status: str | None = None) -> list[dict]:
         out = [s for s in self._signals if s["user_id"] == user_id]
@@ -338,3 +339,82 @@ class InMemoryStore:
             for c in self._connections
             if c["user_id"] == user_id
         ]
+
+    # ── usage outbox (mirror of PgStore's; process-local, dev/tests only) ──
+
+    async def enqueue_usage_events(self, events: list) -> int:
+        from datetime import UTC, datetime
+
+        existing = {r["source_id"] for r in self._usage_outbox}
+        inserted = 0
+        for e in events:
+            if e.source_id in existing:
+                continue
+            existing.add(e.source_id)
+            self._usage_outbox.append(
+                {
+                    "id": len(self._usage_outbox) + 1,
+                    "source_id": e.source_id,
+                    "external_user_id": e.external_user_id,
+                    "reservation_id": e.reservation_id,
+                    "event": e.to_wire(),
+                    "status": "pending",
+                    "attempts": 0,
+                    "next_attempt_at": datetime.now(UTC),
+                    "last_error": None,
+                }
+            )
+            inserted += 1
+        return inserted
+
+    async def claim_usage_outbox(self, *, limit: int, lease_seconds: int) -> list:
+        from datetime import UTC, datetime, timedelta
+
+        from chalybcrypto_hub import OutboxRow
+
+        now = datetime.now(UTC)
+        due = [
+            r for r in self._usage_outbox
+            if r["status"] == "pending" and r["next_attempt_at"] <= now
+        ][:limit]
+        for r in due:
+            r["next_attempt_at"] = now + timedelta(seconds=lease_seconds)
+        return [
+            OutboxRow(
+                id=r["id"],
+                external_user_id=r["external_user_id"],
+                event=r["event"],
+                attempts=r["attempts"],
+            )
+            for r in due
+        ]
+
+    def _outbox_rows(self, ids) -> list[dict]:
+        wanted = set(ids)
+        return [r for r in self._usage_outbox if r["id"] in wanted]
+
+    async def mark_usage_sent(self, ids: list) -> None:
+        for r in self._outbox_rows(ids):
+            r["status"] = "sent"
+            r["last_error"] = None
+
+    async def mark_usage_retry(self, retries: list, *, error: str) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        now = datetime.now(UTC)
+        delays = dict(retries)
+        for r in self._outbox_rows(delays):
+            if r["status"] != "pending":
+                continue
+            r["attempts"] += 1
+            r["next_attempt_at"] = now + timedelta(seconds=delays[r["id"]])
+            r["last_error"] = error
+
+    async def mark_usage_dead(self, ids: list, *, error: str) -> None:
+        for r in self._outbox_rows(ids):
+            r["status"] = "dead"
+            r["attempts"] += 1
+            r["last_error"] = error
+
+    async def list_usage_outbox(self, *, status: str | None = None) -> list[dict]:
+        return [dict(r) for r in self._usage_outbox if status is None or r["status"] == status]

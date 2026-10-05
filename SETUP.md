@@ -4,6 +4,7 @@ Workspace layout (Python 3.12+, per CLAUDE.md):
 
 ```
 packages/shared           chalybcrypto-shared        pydantic models, enums, fees, config
+packages/hub              chalybcrypto-hub           Chalyb hub client: admit/settle/usage, price table, outbox
 services/engine           chalybcrypto-engine        strategy + risk + backtest + paper
 services/api              chalybcrypto-api           FastAPI app (/api/health)
 services/telegram_ingest  chalybcrypto-telegram-ingest  Telegram signal parser
@@ -20,6 +21,7 @@ py -3.12 -m venv .venv   # or py -3.14 -m venv .venv
 # 2. editable installs of every workspace package
 .venv/Scripts/python.exe -m pip install `
   -e packages/shared `
+  -e packages/hub `
   -e services/engine `
   -e services/api `
   -e services/telegram_ingest `
