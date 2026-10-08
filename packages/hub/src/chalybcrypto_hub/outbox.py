@@ -6,7 +6,15 @@ ships them to POST /usage in batches of at most 100 with backoff.
 
   2xx                   → rows marked sent
   408 / 429 / 5xx / net → rows rescheduled with exponential backoff
-  any other 4xx         → rows marked dead + logged at ERROR (never dropped)
+  400 / 413 / 422       → the hub rejected the events' contents: the batch is split
+                          so only the offending row is marked dead + logged at ERROR
+                          (never dropped)
+  401 / 403 / 404 / any other 4xx
+                        → our config, not the events (rotated or mismatched token,
+                          engine not registered, unknown user, wrong base URL): rows
+                          rescheduled with the same backoff and logged at ERROR.
+                          Dead-lettering them would mean that usage is never billed
+                          once the config is fixed.
 
 (engine, source_id) is unique on the hub, so re-sending after a crash between the
 POST and the mark-sent is safe.
@@ -23,7 +31,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from .client import MAX_EVENTS_PER_REQUEST, HubClient, HubRejected, HubUnavailable
+from .client import (
+    MAX_EVENTS_PER_REQUEST,
+    HubClient,
+    HubRejected,
+    HubUnavailable,
+    rejects_payload,
+)
 from .pricing import llm_cost_usd_micros, normalize_model
 
 log = logging.getLogger(__name__)
@@ -161,10 +175,26 @@ async def _send_group(
         stats.retried += len(rows)
         return
     except HubRejected as e:
+        if not rejects_payload(e):
+            # Auth / config: nothing is wrong with the events. Keep them, alert.
+            log.error(
+                "usage outbox: hub refused the request (config/auth, %d event(s) kept "
+                "for retry) for user %s: %s%s",
+                len(rows),
+                user_id,
+                e,
+                " (check CHALYB_HUB_TOKEN / CHALYB_ADMIN_TOKEN)"
+                if e.status_code in (401, 403)
+                else "",
+            )
+            await store.mark_usage_retry(
+                [(r.id, backoff_seconds(r.attempts + 1)) for r in rows], error=str(e)
+            )
+            stats.retried += len(rows)
+            return
         # The hub rejects the whole request for one bad event. Split so one poison
-        # row doesn't dead-letter its neighbours — unless the error is about the
-        # request itself (auth / unknown user), where every row gets the same answer.
-        if len(rows) > 1 and e.status_code not in (401, 403, 404):
+        # row doesn't dead-letter its neighbours.
+        if len(rows) > 1:
             for r in rows:
                 await _send_group(store, client, user_id, [r], stats)
             return
