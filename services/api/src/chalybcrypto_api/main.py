@@ -5,19 +5,20 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Cookie, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from chalybcrypto_shared import get_settings
 
 from chalybcrypto_hub import run_drain_loop
 
 from .admin import admin_router
+from .auth import auth_mode
 from .consumption import get_hub_client
 from .deps import get_store
 from .routes import router as api_router
-from .sso import sso_router
+from .sso import SESSION_COOKIE_NAME, sso_router, verify_session_jwt
 
 
 def _cors_origins() -> list[str]:
@@ -80,9 +81,48 @@ def root() -> RedirectResponse:
     return RedirectResponse(url="/dashboard")
 
 
+def _has_valid_session(token: str | None) -> bool:
+    if not token:
+        return False
+    try:
+        verify_session_jwt(token)
+    except HTTPException:
+        return False
+    return True
+
+
+def _hub_launch_url() -> str | None:
+    """Chalyb's cross-app launcher for this engine: it signs the visitor in (or
+    sends them to /sign-in), checks the plan, mints the SSO token and comes back
+    through /auth/sso."""
+    hub = (os.environ.get("CHALYB_BASE_URL") or "").strip().rstrip("/")
+    if not hub:
+        return None
+    # CHALYB_ENGINE_SLUG is the documented name (hub client, .env.example);
+    # Cloud Run sets ENGINE_SLUG.
+    slug = (
+        os.environ.get("CHALYB_ENGINE_SLUG") or os.environ.get("ENGINE_SLUG") or "chalybcrypto"
+    ).strip()
+    return f"{hub}/auth/launch/{slug}"
+
+
 @app.get("/dashboard", include_in_schema=False)
-def dashboard_index() -> FileResponse:
+def dashboard_index(
+    nxc_session: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+) -> Response:
     """Serve the single-page dashboard. Per ARCHITECTURE, the production dashboard
     lives inside chalyb.com; this is the in-repo demo UI so the API is testable
-    without spinning up Next.js."""
+    without spinning up Next.js.
+
+    In jwt mode (always on Cloud Run) a visitor without a valid session is sent
+    to Chalyb to sign in instead of getting a panel whose every call fails 401."""
+    if auth_mode() == "jwt" and not _has_valid_session(nxc_session):
+        launch = _hub_launch_url()
+        if launch:
+            return RedirectResponse(url=launch, status_code=302)
+        return HTMLResponse(
+            "<!DOCTYPE html><html lang=\"es\"><meta charset=\"utf-8\">"
+            "<title>ChalyCrypto</title><p>Inicia sesión en Chalyb para abrir este panel.</p>",
+            status_code=401,
+        )
     return FileResponse(_DASHBOARD_DIR / "index.html")

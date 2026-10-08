@@ -11,15 +11,18 @@ import math
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
 from chalybcrypto_hub import HubClient
 from chalybcrypto_shared import FeeSchedule, Mode, RiskProfile, vault_from_env
 
+from .admin import require_admin
+from .auth import auth_mode
 from .consumption import admitted, get_hub_client
 from .deps import get_current_user_id, get_store
+from .sso import SESSION_COOKIE_NAME, verify_session_jwt
 from .store import ApiStore
 
 
@@ -27,6 +30,24 @@ router = APIRouter(prefix="/api")
 
 
 _VALID_EXCHANGES = {"binance", "lbank", "bitunix"}
+
+
+# ── who am I (the dashboard header shows this, not a user-id box) ──────────
+
+
+@router.get("/me")
+async def me(
+    user_id: UUID = Depends(get_current_user_id),
+    nxc_session: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+) -> dict:
+    """The signed-in user as the API sees them. `email` comes from the Chalyb SSO
+    session (None for a Bearer caller or the local stub); `auth` tells the
+    dashboard whether the X-User-Id box means anything (stub only)."""
+    mode = auth_mode()
+    email = None
+    if mode == "jwt" and nxc_session:
+        email = verify_session_jwt(nxc_session).get("email")
+    return {"user_id": str(user_id), "email": email, "auth": mode}
 
 
 # ── signals ────────────────────────────────────────────────────────────────
@@ -242,6 +263,7 @@ async def put_risk_profile_(
 @router.get("/fee-schedules")
 async def list_fee_schedules(
     store: ApiStore = Depends(get_store),
+    _user_id: UUID = Depends(get_current_user_id),
 ) -> list[dict]:
     schedules = await store.list_fee_schedules()
     return [s.model_dump(mode="json") for s in schedules]
@@ -251,8 +273,11 @@ async def list_fee_schedules(
 async def put_fee_schedules(
     schedules: list[FeeSchedule],
     store: ApiStore = Depends(get_store),
-    _user_id: UUID = Depends(get_current_user_id),
+    _admin: None = Depends(require_admin),
 ) -> list[dict]:
+    """Global table: it feeds every user's fee/EV math, so only the service-to-
+    service admin token may write it (0002_rls.sql: service-role-only writes).
+    A signed-in user could otherwise rewrite everyone's fees."""
     saved = await store.put_fee_schedules(schedules=schedules)
     return [s.model_dump(mode="json") for s in saved]
 
