@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from decimal import Decimal
 from functools import lru_cache
 
@@ -30,8 +31,11 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # App
-    app_env: str = "local"
+    # App. APP_ENV wins when set; otherwise Cloud Run (K_SERVICE is injected on every
+    # revision) reports "production" so a deployed service never claims env=local.
+    app_env: str = Field(
+        default_factory=lambda: "production" if os.environ.get("K_SERVICE") else "local"
+    )
     app_default_locale: str = "es"
     log_level: str = "info"
 
