@@ -245,18 +245,45 @@ def test_risk_profile_get_returns_none_initially(client):
 # ── fees + strategies ──────────────────────────────────────────────────────
 
 
-def test_fee_schedules_put_then_get(client):
+def test_fee_schedules_put_then_get(client, admin_token):
     c, _ = client
     fee = FeeSchedule(
         exchange="bitunix", symbol=None, vip_level="VIP0",
         maker_bps=Decimal("2"), taker_bps=Decimal("6"),
         effective_at=NOW, source="seed",
     )
-    r = c.put("/api/fee-schedules", headers=_auth(), json=[fee.model_dump(mode="json")])
+    r = c.put(
+        "/api/fee-schedules",
+        headers={"Authorization": "Bearer admin-test-token"},
+        json=[fee.model_dump(mode="json")],
+    )
     assert r.status_code == 200
-    r = c.get("/api/fee-schedules")  # global readable
+    r = c.get("/api/fee-schedules", headers=_auth())  # global, any signed-in user
     assert r.status_code == 200
     assert len(r.json()) == 1
+
+
+@pytest.fixture
+def admin_token(monkeypatch):
+    monkeypatch.setenv("CHALYB_ADMIN_TOKEN", "admin-test-token")
+
+
+def test_fee_schedules_put_refuses_a_plain_user(client, admin_token):
+    # Global table feeding everyone's fee/EV math: a signed-in user must not write it.
+    c, store = client
+    fee = FeeSchedule(
+        exchange="bitunix", symbol=None, vip_level="VIP0",
+        maker_bps=Decimal("0"), taker_bps=Decimal("0"),
+        effective_at=NOW, source="user",
+    )
+    r = c.put("/api/fee-schedules", headers=_auth(), json=[fee.model_dump(mode="json")])
+    assert r.status_code == 401
+    assert store._fee_schedules == []
+
+
+def test_fee_schedules_get_requires_auth(client):
+    c, _ = client
+    assert c.get("/api/fee-schedules").status_code == 401
 
 
 def test_strategies_returns_mvp_three(client):
