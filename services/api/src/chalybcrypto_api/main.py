@@ -98,7 +98,11 @@ def _hub_launch_url() -> str | None:
     hub = (os.environ.get("CHALYB_BASE_URL") or "").strip().rstrip("/")
     if not hub:
         return None
-    slug = (os.environ.get("ENGINE_SLUG") or "chalybcrypto").strip()
+    # CHALYB_ENGINE_SLUG is the documented name (hub client, .env.example);
+    # Cloud Run sets ENGINE_SLUG.
+    slug = (
+        os.environ.get("CHALYB_ENGINE_SLUG") or os.environ.get("ENGINE_SLUG") or "chalybcrypto"
+    ).strip()
     return f"{hub}/auth/launch/{slug}"
 
 
