@@ -136,10 +136,39 @@ def test_hub_5xx_fails_closed(api):
     assert c.post("/api/backtests", headers=AUTH, json=BT).status_code == 503
 
 
-def test_hub_permanent_4xx_fails_closed(api):
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (401, {"error": "missing bearer token"}),
+        (403, {"error": "invalid bearer token"}),
+        (404, {"error": "unknown engine: chalybcrypto"}),
+        (400, {"error": "invalid est_tokens"}),
+    ],
+)
+def test_hub_config_4xx_fails_closed(api, status, body):
+    c, use = api
+    use(FakeHub(body, admit_status=status))
+    r = c.post("/api/backtests", headers=AUTH, json=BT)
+    assert r.status_code == 503
+    assert r.json()["detail"]["error"] == "hub_unavailable"
+
+
+def test_unknown_user_is_not_reported_as_hub_down(api):
     c, use = api
     use(FakeHub({"error": "unknown user_id"}, admit_status=404))
-    assert c.post("/api/backtests", headers=AUTH, json=BT).status_code == 503
+    r = c.post("/api/backtests", headers=AUTH, json=BT)
+    assert r.status_code == 403
+    assert r.json()["detail"]["error"] == "unknown_user"
+
+
+def test_4xx_carrying_a_refusal_reason_maps_like_a_refusal(api):
+    c, use = api
+    use(FakeHub({"allowed": False, "reason": "no_tokens"}, admit_status=409))
+    r = c.post("/api/backtests", headers=AUTH, json=BT)
+    assert r.status_code == 402
+    assert r.json()["detail"] == {
+        "error": "usage_refused", "reason": "no_tokens", "operation": "backtests.run",
+    }
 
 
 def test_no_hub_configured_bypasses_admission(api):
