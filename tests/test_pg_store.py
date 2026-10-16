@@ -173,3 +173,30 @@ async def test_signal_prefs_upsert_and_isolation(store):
     assert await store.put_signal_prefs(user_id=a, prefs=p2) == p2
     assert await store.get_signal_prefs(user_id=a) == p2
     assert await store.get_signal_prefs(user_id=b) is None
+
+
+async def test_backtest_runs_round_trip_and_isolation(store):
+    a, b = uuid4(), uuid4()
+    run = {"job_id": f"backtest_{uuid4().hex}", "status": "done", "strategy": "fvg_ob",
+           "pair": "BTCUSDT", "timeframe": "5m", "bars_requested": 500,
+           "from": "2026-09-01T00:00:00+00:00", "to": "2026-09-02T00:00:00+00:00",
+           "optimistic": True, "metrics": {"sample_size": 3}}
+    await store.add_backtest_run(user_id=a, run=run)
+    assert (await store.list_backtest_runs(user_id=a))[0] == run
+    assert await store.get_backtest_run(user_id=a, job_id=run["job_id"]) == run
+    assert await store.list_backtest_runs(user_id=b) == []
+    assert await store.get_backtest_run(user_id=b, job_id=run["job_id"]) is None
+
+
+async def test_signal_feed_insert_latest_list(store):
+    e = {"coin": "ZZZ", "pair": "ZZZUSDT", "interval": "1h", "state": "buy", "confidence": "high",
+         "why_short": "s", "why_bullets": ["a", "b", "c"], "explanation": "x",
+         "strategies": ["ema_adx_trend"], "ref_price_usd": Decimal("1.5"), "ref_price_mxn": None}
+    row = await store.add_feed_entry(entry=e)
+    assert row["state"] == "buy" and row["why_bullets"] == ["a", "b", "c"]
+    e2 = {**e, "state": "wait", "confidence": "none"}
+    row2 = await store.add_feed_entry(entry=e2)
+    assert (await store.latest_feed_entry(coin="ZZZ"))["id"] == row2["id"]
+    assert (await store.get_feed_entry(entry_id=row["id"]))["state"] == "buy"
+    ids = [r["id"] for r in await store.list_feed(limit=500)]
+    assert row2["id"] in ids

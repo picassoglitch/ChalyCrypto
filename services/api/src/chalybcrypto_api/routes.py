@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from chalybcrypto_hub import HubClient
 from chalybcrypto_shared import FeeSchedule, Mode, RiskProfile, vault_from_env
@@ -268,15 +268,15 @@ async def list_strategies(
     return await store.list_strategies()
 
 
-# ── backtests (queue stub; runner integration in Phase 4 backtester) ──────
+# ── backtests (run in the request; results stored per user) ────────────────
 
 
 class BacktestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     strategy: str
-    pair: str
+    pair: str = Field(pattern=r"^[A-Za-z0-9]{2,20}$")
     timeframe: str = "5m"
-    bars: int = 1500
+    bars: int = Field(default=1500, ge=100, le=5000)
 
 
 # Hub admission estimate for a backtest, in billable tokens. Backtests spend
@@ -291,14 +291,30 @@ def _backtest_est_tokens(bars: int) -> int:
     return max(1, math.ceil(micros / 4))
 
 
-@router.post("/backtests", status_code=status.HTTP_202_ACCEPTED)
-async def queue_backtest(
+@router.post("/backtests")
+async def run_backtest_route(
     body: BacktestRequest,
     user_id: UUID = Depends(get_current_user_id),
     hub: HubClient | None = Depends(get_hub_client),
+    store: ApiStore = Depends(get_store),
 ) -> dict:
-    # Hub admission (class "job") before any work; refusal → 402/429/413 with the
-    # reason, hub down → 503 (fail closed). Settled in admitted()'s finally.
+    """Run a backtest now and return its result (always labelled OPTIMISTIC).
+
+    Hub admission (class "job") runs before any work; a refusal → 402/429/413
+    with the reason, hub down → 503 (fail closed). The reservation settles
+    "succeeded" only when a result comes back, "failed" on any error, so a
+    failed run is never charged (consumption contract)."""
+    from .backtests import BACKTEST_INTERVALS, bitunix_fee, run_backtest
+    from .history import HistoryUnavailable
+    from .strategy_catalog import CATALOG
+
+    enabled = {s["key"] for s in await store.list_strategies() if s.get("enabled", True)}
+    if body.strategy not in CATALOG or body.strategy not in enabled:
+        raise HTTPException(status_code=400, detail=f"unknown strategy {body.strategy!r}")
+    if body.timeframe not in BACKTEST_INTERVALS:
+        raise HTTPException(status_code=400, detail=f"unknown timeframe {body.timeframe!r}")
+    pair = body.pair.upper()
+    fee = bitunix_fee(await store.list_fee_schedules())
     job_id = f"backtest_{uuid4().hex}"
     async with admitted(
         hub,
@@ -306,21 +322,57 @@ async def queue_backtest(
         operation="backtests.run",
         external_job_id=job_id,
         est_tokens=_backtest_est_tokens(body.bars),
-    ) as adm:
-        # The actual job is enqueued onto Celery in Phase 6 worker integration.
-        # For now we return the job description so the dashboard can show 'queued'.
-        # When the runner lands, settle must move to the worker (pass reservation_id).
-        return {
-            "status": "queued",
-            "job_id": job_id,
-            "reservation_id": adm.reservation_id,
-            "lane": adm.lane,
-            "strategy": body.strategy,
-            "pair": body.pair,
-            "timeframe": body.timeframe,
-            "bars": body.bars,
-            "optimistic": True,  # CLAUDE.md: backtests are always labelled OPTIMISTIC
-        }
+    ):
+        try:
+            result = await run_backtest(
+                job_id=job_id,
+                strategy=body.strategy,
+                pair=pair,
+                timeframe=body.timeframe,
+                bars=body.bars,
+                fee=fee,
+            )
+        except HistoryUnavailable as e:
+            await store.add_backtest_run(
+                user_id=user_id,
+                run={
+                    "job_id": job_id,
+                    "status": "failed",
+                    "error": "data_unavailable",
+                    "strategy": body.strategy,
+                    "pair": pair,
+                    "timeframe": body.timeframe,
+                    "bars_requested": body.bars,
+                    "optimistic": True,
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "backtest_data_unavailable", "job_id": job_id},
+            ) from e
+        await store.add_backtest_run(user_id=user_id, run=result)
+        return result
+
+
+@router.get("/backtests")
+async def list_backtests(
+    limit: int = Query(default=20, ge=1, le=50),
+    user_id: UUID = Depends(get_current_user_id),
+    store: ApiStore = Depends(get_store),
+) -> list[dict]:
+    return await store.list_backtest_runs(user_id=user_id, limit=limit)
+
+
+@router.get("/backtests/{job_id}")
+async def get_backtest(
+    job_id: str,
+    user_id: UUID = Depends(get_current_user_id),
+    store: ApiStore = Depends(get_store),
+) -> dict:
+    run = await store.get_backtest_run(user_id=user_id, job_id=job_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="backtest not found")
+    return run
 
 
 # ── SSE telemetry (skeleton — real subscription is wired in Phase 6 worker) ──

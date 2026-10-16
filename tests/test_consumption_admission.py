@@ -92,9 +92,10 @@ def test_backtest_admitted_and_settled_succeeded(api):
     hub = FakeHub()
     use(hub)
     r = c.post("/api/backtests", headers=AUTH, json=BT)
-    assert r.status_code == 202, r.text
+    assert r.status_code == 200, r.text
     body = r.json()
-    assert body["reservation_id"] == "res-1"
+    assert body["status"] == "done"
+    assert "reservation_id" not in body
     assert body["optimistic"] is True
     assert hub.paths() == ["/admit", "/settle"]
     admit = hub.calls[0][1]
@@ -146,8 +147,29 @@ def test_no_hub_configured_bypasses_admission(api):
     c, use = api
     use(None)
     r = c.post("/api/backtests", headers=AUTH, json=BT)
-    assert r.status_code == 202
-    assert r.json()["reservation_id"] is None
+    assert r.status_code == 200
+    assert r.json()["status"] == "done"
+
+
+def test_backtest_without_data_settles_failed_and_is_not_charged(api, monkeypatch):
+    import chalybcrypto_api.backtests as bt
+    from chalybcrypto_api.history import HistoryUnavailable
+
+    async def down(*a, **k):
+        raise HistoryUnavailable("binance: 451; bitunix: timeout")
+
+    monkeypatch.setattr(bt, "fetch_history", down)
+    c, use = api
+    hub = FakeHub()
+    use(hub)
+    r = c.post("/api/backtests", headers=AUTH, json=BT)
+    assert r.status_code == 502
+    assert r.json()["detail"]["error"] == "backtest_data_unavailable"
+    assert hub.paths() == ["/admit", "/settle"]
+    assert hub.calls[1][1]["outcome"] == "failed"
+    # The failure is on record for the person.
+    runs = c.get("/api/backtests", headers=AUTH).json()
+    assert runs[0]["status"] == "failed"
 
 
 def test_from_env_unset_means_dev(monkeypatch):

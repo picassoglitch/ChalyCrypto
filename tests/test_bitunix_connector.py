@@ -65,6 +65,21 @@ async def test_klines_parses_fixture_into_shared_model():
 
 
 @pytest.mark.asyncio
+async def test_klines_come_back_oldest_first_even_though_bitunix_sends_newest_first():
+    # The live API answers newest-first (checked 2026-10-16); indicators and
+    # strategies need oldest-first.
+    payload = _load("kline.json")
+    payload["data"] = list(reversed(payload["data"]))
+    c = _make_connector(lambda r: httpx.Response(200, json=payload))
+    try:
+        rows = await c.klines("BTCUSDT", "1m", limit=2)
+    finally:
+        await c.aclose()
+    assert [r.open_time for r in rows] == sorted(r.open_time for r in rows)
+    assert rows[0].open == Decimal("60000")
+
+
+@pytest.mark.asyncio
 async def test_klines_rejects_bad_interval():
     c = _make_connector(lambda r: httpx.Response(500))
     try:

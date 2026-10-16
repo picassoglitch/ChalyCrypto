@@ -8,6 +8,7 @@ swap is mechanical.
 from __future__ import annotations
 
 from typing import Protocol
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from chalybcrypto_shared import (
@@ -57,6 +58,15 @@ class ApiStore(Protocol):
     async def get_signal_prefs(self, *, user_id: UUID) -> dict | None: ...
     async def put_signal_prefs(self, *, user_id: UUID, prefs: dict) -> dict: ...
 
+    # Backtest runs (per user) and the Señales shared feed (no user).
+    async def add_backtest_run(self, *, user_id: UUID, run: dict) -> dict: ...
+    async def list_backtest_runs(self, *, user_id: UUID, limit: int = 20) -> list[dict]: ...
+    async def get_backtest_run(self, *, user_id: UUID, job_id: str) -> dict | None: ...
+    async def add_feed_entry(self, *, entry: dict) -> dict: ...
+    async def latest_feed_entry(self, *, coin: str) -> dict | None: ...
+    async def list_feed(self, *, since: datetime | None = None, limit: int = 200) -> list[dict]: ...
+    async def get_feed_entry(self, *, entry_id: UUID) -> dict | None: ...
+
     # ── tenants (Chalyb integration) ─────────────────────────────────
     async def provision_tenant(
         self,
@@ -105,6 +115,8 @@ class InMemoryStore:
         self._tenants: list[dict] = []
         self._usage_outbox: list[dict] = []
         self._signal_prefs: dict[UUID, dict] = {}
+        self._backtest_runs: list[dict] = []
+        self._feed: list[dict] = []
 
     async def list_signals(self, *, user_id: UUID, status: str | None = None) -> list[dict]:
         out = [s for s in self._signals if s["user_id"] == user_id]
@@ -267,6 +279,42 @@ class InMemoryStore:
     async def put_signal_prefs(self, *, user_id: UUID, prefs: dict) -> dict:
         self._signal_prefs[user_id] = dict(prefs)
         return dict(prefs)
+
+    async def add_backtest_run(self, *, user_id: UUID, run: dict) -> dict:
+        row = {**run, "user_id": user_id}
+        self._backtest_runs.append(row)
+        return dict(run)
+
+    async def list_backtest_runs(self, *, user_id: UUID, limit: int = 20) -> list[dict]:
+        rows = [r for r in self._backtest_runs if r["user_id"] == user_id]
+        return [
+            {k: v for k, v in r.items() if k != "user_id"} for r in reversed(rows)
+        ][:limit]
+
+    async def get_backtest_run(self, *, user_id: UUID, job_id: str) -> dict | None:
+        for r in self._backtest_runs:
+            if r["user_id"] == user_id and r["job_id"] == job_id:
+                return {k: v for k, v in r.items() if k != "user_id"}
+        return None
+
+    async def add_feed_entry(self, *, entry: dict) -> dict:
+        from datetime import UTC, datetime
+
+        row = {**entry, "id": uuid4(), "created_at": entry.get("created_at") or datetime.now(UTC)}
+        self._feed.append(row)
+        return dict(row)
+
+    async def latest_feed_entry(self, *, coin: str) -> dict | None:
+        rows = [r for r in self._feed if r["coin"] == coin]
+        return dict(max(rows, key=lambda r: r["created_at"])) if rows else None
+
+    async def list_feed(self, *, since=None, limit: int = 200) -> list[dict]:
+        rows = [r for r in self._feed if since is None or r["created_at"] >= since]
+        rows.sort(key=lambda r: r["created_at"], reverse=True)
+        return [dict(r) for r in rows[:limit]]
+
+    async def get_feed_entry(self, *, entry_id: UUID) -> dict | None:
+        return next((dict(r) for r in self._feed if r["id"] == entry_id), None)
 
     async def list_strategies(self) -> list[dict]:
         return list(self._strategies)

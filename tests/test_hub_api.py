@@ -285,8 +285,14 @@ def test_backtest_admitted_through_v1(client):
         )
     finally:
         hub_app.dependency_overrides.pop(get_hub_client, None)
-    assert r.status_code == 202, r.text
+    assert r.status_code == 200, r.text
     assert r.json()["optimistic"] is True
+    assert r.json()["status"] == "done"
+    runs = client.get(f"{V1}/backtests", headers=bearer()).json()
+    assert runs[0]["job_id"] == r.json()["job_id"]
+    # Another user can't see it.
+    assert client.get(f"{V1}/backtests", headers=bearer(BOB)).json() == []
+    assert client.get(f"{V1}/backtests/{r.json()['job_id']}", headers=bearer(BOB)).status_code == 404
     assert hub.paths() == ["/admit", "/settle"]
 
 
