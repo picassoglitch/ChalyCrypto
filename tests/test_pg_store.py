@@ -162,3 +162,14 @@ async def test_positions_and_trades_empty_initially(store):
     user = uuid4()
     assert await store.list_positions(user_id=user) == []
     assert await store.list_trades(user_id=user) == []
+
+
+async def test_signal_prefs_upsert_and_isolation(store):
+    a, b = uuid4(), uuid4()
+    assert await store.get_signal_prefs(user_id=a) is None
+    p1 = {"coins": ["BTC"], "channels": ["app"], "timeframe": "day", "quietHours": True}
+    assert await store.put_signal_prefs(user_id=a, prefs=p1) == p1
+    p2 = {**p1, "coins": ["ETH", "SOL"], "timeframe": "week"}
+    assert await store.put_signal_prefs(user_id=a, prefs=p2) == p2
+    assert await store.get_signal_prefs(user_id=a) == p2
+    assert await store.get_signal_prefs(user_id=b) is None

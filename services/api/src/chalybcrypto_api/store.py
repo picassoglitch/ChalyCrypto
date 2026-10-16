@@ -53,6 +53,10 @@ class ApiStore(Protocol):
     # ── strategies ────────────────────────────────────────
     async def list_strategies(self) -> list[dict]: ...
 
+    # Señales delivery preferences from the hub (filters only; never content).
+    async def get_signal_prefs(self, *, user_id: UUID) -> dict | None: ...
+    async def put_signal_prefs(self, *, user_id: UUID, prefs: dict) -> dict: ...
+
     # ── tenants (Chalyb integration) ─────────────────────────────────
     async def provision_tenant(
         self,
@@ -100,6 +104,7 @@ class InMemoryStore:
         self._connections: list[dict] = []
         self._tenants: list[dict] = []
         self._usage_outbox: list[dict] = []
+        self._signal_prefs: dict[UUID, dict] = {}
 
     async def list_signals(self, *, user_id: UUID, status: str | None = None) -> list[dict]:
         out = [s for s in self._signals if s["user_id"] == user_id]
@@ -254,6 +259,14 @@ class InMemoryStore:
     async def put_fee_schedules(self, *, schedules: list[FeeSchedule]) -> list[FeeSchedule]:
         self._fee_schedules = list(schedules)
         return self._fee_schedules
+
+    async def get_signal_prefs(self, *, user_id: UUID) -> dict | None:
+        p = self._signal_prefs.get(user_id)
+        return dict(p) if p is not None else None
+
+    async def put_signal_prefs(self, *, user_id: UUID, prefs: dict) -> dict:
+        self._signal_prefs[user_id] = dict(prefs)
+        return dict(prefs)
 
     async def list_strategies(self) -> list[dict]:
         return list(self._strategies)

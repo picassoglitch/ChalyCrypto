@@ -558,6 +558,37 @@ class PgStore:
             await conn.close()
         return profile
 
+    async def get_signal_prefs(self, *, user_id: UUID) -> dict | None:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                "select prefs from chalybcrypto.signal_prefs where user_id = %s",
+                (user_id,),
+            )
+            row = await cur.fetchone()
+            return dict(row["prefs"]) if row else None
+        finally:
+            await conn.close()
+
+    async def put_signal_prefs(self, *, user_id: UUID, prefs: dict) -> dict:
+        conn = await self._conn()
+        try:
+            await self._ensure_user(conn, user_id)
+            cur = await conn.execute(
+                """
+                insert into chalybcrypto.signal_prefs (user_id, prefs, updated_at)
+                values (%s, %s::jsonb, now())
+                on conflict (user_id) do update
+                  set prefs = excluded.prefs, updated_at = now()
+                returning prefs
+                """,
+                (user_id, json.dumps(prefs)),
+            )
+            row = await cur.fetchone()
+            return dict(row["prefs"])
+        finally:
+            await conn.close()
+
     async def list_fee_schedules(self) -> list[FeeSchedule]:
         conn = await self._conn()
         try:
