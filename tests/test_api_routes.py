@@ -270,16 +270,42 @@ def test_strategies_returns_mvp_three(client):
 # ── backtests + stream ─────────────────────────────────────────────────────
 
 
-def test_queue_backtest_returns_optimistic_flag(client):
+def test_backtest_runs_and_returns_an_optimistic_result(client):
     c, _ = client
     r = c.post(
         "/api/backtests",
         headers=_auth(),
-        json={"strategy": "ema_adx_trend", "pair": "BTCUSDT", "timeframe": "5m", "bars": 1500},
+        json={"strategy": "ema_adx_trend", "pair": "btcusdt", "timeframe": "5m", "bars": 1500},
     )
-    assert r.status_code == 202
-    assert r.json()["optimistic"] is True
-    assert r.json()["status"] == "queued"
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["optimistic"] is True
+    assert body["status"] == "done"
+    assert body["pair"] == "BTCUSDT"
+    assert body["metrics"]["sample_size"] >= 0
+    assert set(body["assumptions"]) >= {"risk_per_trade_bps", "taker_bps", "lookback_bars"}
+    # Stored for the user, newest first, and readable by id.
+    runs = c.get("/api/backtests", headers=_auth()).json()
+    assert runs[0]["job_id"] == body["job_id"]
+    assert c.get(f"/api/backtests/{body['job_id']}", headers=_auth()).json() == body
+    assert c.get("/api/backtests/nope", headers=_auth()).status_code == 404
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"strategy": "nope"},
+        {"timeframe": "1w"},
+        {"bars": 99},
+        {"bars": 5001},
+        {"pair": "BTC/USDT"},
+        {"extra": 1},
+    ],
+)
+def test_backtest_rejects_bad_input(client, patch):
+    c, _ = client
+    body = {"strategy": "fvg_ob", "pair": "BTCUSDT", "timeframe": "5m", "bars": 500, **patch}
+    assert c.post("/api/backtests", headers=_auth(), json=body).status_code in (400, 422)
 
 
 def test_stream_returns_sse_content_type(client):

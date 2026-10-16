@@ -95,3 +95,22 @@ steps:
           --region=${_REGION} --project=${_PROJECT} \
           --no-cpu-throttling --quiet
     waitFor: [push]
+
+  # The Señales feed job (chalybcrypto_api.feed_job) runs this same image on a
+  # Cloud Scheduler trigger. Terraform creates the job (hub repo,
+  # infra/terraform: engines.chalybcrypto.jobs.feed) and ignores its image, so
+  # each deploy points it at the new one. Skipped while the job doesn't exist.
+  - id: update-feed-job
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        if ! gcloud run jobs describe ${_SERVICE}-feed --region=${_REGION} --project=${_PROJECT} >/dev/null 2>&1; then
+          echo "no ${_SERVICE}-feed job yet; skipping"
+          exit 0
+        fi
+        gcloud run jobs update ${_SERVICE}-feed \
+          --image=${_REGION}-docker.pkg.dev/${_PROJECT}/${_REPO}/${_SERVICE}:${SHORT_SHA} \
+          --region=${_REGION} --project=${_PROJECT} --quiet
+    waitFor: [push]

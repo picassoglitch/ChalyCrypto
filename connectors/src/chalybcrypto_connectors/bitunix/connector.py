@@ -167,6 +167,9 @@ class BitunixConnector(ExchangeConnector):
                     close_time=datetime.fromtimestamp(open_ms / 1000, tz=timezone.utc),
                 )
             )
+        # Bitunix answers newest-first. Everything downstream (indicators,
+        # strategies, the scanner, charts) expects oldest-first.
+        out.sort(key=lambda k: k.open_time)
         return out
 
     async def order_book(self, pair: str, *, limit: int = 50) -> OrderBookSnapshot:

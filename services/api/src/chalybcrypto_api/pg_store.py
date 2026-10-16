@@ -558,6 +558,154 @@ class PgStore:
             await conn.close()
         return profile
 
+    async def get_signal_prefs(self, *, user_id: UUID) -> dict | None:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                "select prefs from chalybcrypto.signal_prefs where user_id = %s",
+                (user_id,),
+            )
+            row = await cur.fetchone()
+            return dict(row["prefs"]) if row else None
+        finally:
+            await conn.close()
+
+    async def put_signal_prefs(self, *, user_id: UUID, prefs: dict) -> dict:
+        conn = await self._conn()
+        try:
+            await self._ensure_user(conn, user_id)
+            cur = await conn.execute(
+                """
+                insert into chalybcrypto.signal_prefs (user_id, prefs, updated_at)
+                values (%s, %s::jsonb, now())
+                on conflict (user_id) do update
+                  set prefs = excluded.prefs, updated_at = now()
+                returning prefs
+                """,
+                (user_id, json.dumps(prefs)),
+            )
+            row = await cur.fetchone()
+            return dict(row["prefs"])
+        finally:
+            await conn.close()
+
+    # ── backtest runs (table `backtests`, 0001_init) ─────────────────────────
+    # The whole API result lives in `metrics` (it carries the OPTIMISTIC label,
+    # the metrics and the assumptions); the job id in params->>'job_id'.
+    async def add_backtest_run(self, *, user_id: UUID, run: dict) -> dict:
+        conn = await self._conn()
+        try:
+            await self._ensure_user(conn, user_id)
+            await conn.execute(
+                """
+                insert into chalybcrypto.backtests
+                  (user_id, strategy, pair, timeframe, period_start, period_end,
+                   params, metrics, optimistic)
+                values (%s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, true)
+                """,
+                (
+                    user_id, run.get("strategy"), run.get("pair"), run.get("timeframe"),
+                    run.get("from"), run.get("to"),
+                    json.dumps({"job_id": run["job_id"], "bars": run.get("bars_requested")}),
+                    json.dumps(run),
+                ),
+            )
+            return dict(run)
+        finally:
+            await conn.close()
+
+    async def list_backtest_runs(self, *, user_id: UUID, limit: int = 20) -> list[dict]:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                "select metrics from chalybcrypto.backtests "
+                "where user_id = %s and params ? 'job_id' "
+                "order by created_at desc limit %s",
+                (user_id, limit),
+            )
+            return [dict(r["metrics"]) for r in await cur.fetchall()]
+        finally:
+            await conn.close()
+
+    async def get_backtest_run(self, *, user_id: UUID, job_id: str) -> dict | None:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                "select metrics from chalybcrypto.backtests "
+                "where user_id = %s and params->>'job_id' = %s",
+                (user_id, job_id),
+            )
+            row = await cur.fetchone()
+            return dict(row["metrics"]) if row else None
+        finally:
+            await conn.close()
+
+    # ── Señales shared feed (no user) ───────────────────────────────────────
+    _FEED_COLS = (
+        "id, coin, pair, interval, state, confidence, why_short, why_bullets, explanation, "
+        "strategies, ref_price_usd, ref_price_mxn, created_at"
+    )
+
+    async def add_feed_entry(self, *, entry: dict) -> dict:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                f"""
+                insert into chalybcrypto.signal_feed
+                  (coin, pair, interval, state, confidence, why_short, why_bullets,
+                   explanation, strategies, ref_price_usd, ref_price_mxn)
+                values (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s, %s)
+                returning {self._FEED_COLS}
+                """,
+                (
+                    entry["coin"], entry["pair"], entry["interval"], entry["state"],
+                    entry["confidence"], entry["why_short"], json.dumps(entry["why_bullets"]),
+                    entry["explanation"], json.dumps(entry.get("strategies", [])),
+                    entry["ref_price_usd"], entry.get("ref_price_mxn"),
+                ),
+            )
+            return dict(await cur.fetchone())
+        finally:
+            await conn.close()
+
+    async def latest_feed_entry(self, *, coin: str) -> dict | None:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                f"select {self._FEED_COLS} from chalybcrypto.signal_feed "
+                "where coin = %s order by created_at desc limit 1",
+                (coin,),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+        finally:
+            await conn.close()
+
+    async def list_feed(self, *, since=None, limit: int = 200) -> list[dict]:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                f"select {self._FEED_COLS} from chalybcrypto.signal_feed "
+                "where (%s::timestamptz is null or created_at >= %s::timestamptz) "
+                "order by created_at desc limit %s",
+                (since, since, limit),
+            )
+            return [dict(r) for r in await cur.fetchall()]
+        finally:
+            await conn.close()
+
+    async def get_feed_entry(self, *, entry_id: UUID) -> dict | None:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                f"select {self._FEED_COLS} from chalybcrypto.signal_feed where id = %s",
+                (entry_id,),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+        finally:
+            await conn.close()
+
     async def list_fee_schedules(self) -> list[FeeSchedule]:
         conn = await self._conn()
         try:
