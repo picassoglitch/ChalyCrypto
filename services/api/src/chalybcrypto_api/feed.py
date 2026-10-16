@@ -122,7 +122,7 @@ def compute_reading(coin: str, klines: list[Kline], now: datetime) -> dict:
     if abs(change) < Decimal("0.2"):
         b1 = "En las últimas 24 horas casi no se movió."
     else:
-        b1 = f"En las últimas 24 horas {'subió' if change > 0 else 'bajó'} {_pct(change)} %."
+        b1 = f"En las últimas 24 horas {'subió' if change > 0 else 'bajó'} {_pct(change)}%."
     if adx_v is None:
         b2 = "Todavía no hay datos para medir la fuerza de la tendencia."
     else:
