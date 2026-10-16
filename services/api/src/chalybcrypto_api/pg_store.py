@@ -39,12 +39,18 @@ class PgStore:
         self._dsn = dsn
 
     async def _conn(self) -> psycopg.AsyncConnection:
-        return await psycopg.AsyncConnection.connect(self._dsn, autocommit=True, row_factory=dict_row)
+        # prepare_threshold=None: no server-side prepared statements, which
+        # Supabase's transaction pooler (port 6543) can't keep across
+        # transactions. Harmless on a direct or session-pooler DSN.
+        return await psycopg.AsyncConnection.connect(
+            self._dsn, autocommit=True, row_factory=dict_row, prepare_threshold=None
+        )
 
     async def _ensure_user(self, conn: psycopg.AsyncConnection, user_id: UUID) -> None:
         """Insert user row if missing.
 
-        Two modes, switched on CHALYBCRYPTO_MANAGE_USERS (default 'true' for local/test):
+        Two modes, switched on CHALYBCRYPTO_MANAGE_USERS (default 'true' for local/test,
+        'false' on Cloud Run):
 
           true:  Insert into BOTH auth.users and chalybcrypto.users (on conflict no-op).
                  Required for local Postgres + tests where the auth shim is applied.
@@ -56,8 +62,10 @@ class PgStore:
         """
         import os  # local import keeps the constructor fast-path uncomplicated
 
+        # Never on Cloud Run: there auth.users belongs to Supabase Auth.
+        default = "false" if os.environ.get("K_SERVICE") else "true"
         manage_users = (
-            os.environ.get("CHALYBCRYPTO_MANAGE_USERS", "true").strip().lower()
+            os.environ.get("CHALYBCRYPTO_MANAGE_USERS", default).strip().lower()
             in ("1", "true", "yes", "on")
         )
         if manage_users:
@@ -555,6 +563,154 @@ class PgStore:
             await conn.close()
         return profile
 
+    async def get_signal_prefs(self, *, user_id: UUID) -> dict | None:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                "select prefs from chalybcrypto.signal_prefs where user_id = %s",
+                (user_id,),
+            )
+            row = await cur.fetchone()
+            return dict(row["prefs"]) if row else None
+        finally:
+            await conn.close()
+
+    async def put_signal_prefs(self, *, user_id: UUID, prefs: dict) -> dict:
+        conn = await self._conn()
+        try:
+            await self._ensure_user(conn, user_id)
+            cur = await conn.execute(
+                """
+                insert into chalybcrypto.signal_prefs (user_id, prefs, updated_at)
+                values (%s, %s::jsonb, now())
+                on conflict (user_id) do update
+                  set prefs = excluded.prefs, updated_at = now()
+                returning prefs
+                """,
+                (user_id, json.dumps(prefs)),
+            )
+            row = await cur.fetchone()
+            return dict(row["prefs"])
+        finally:
+            await conn.close()
+
+    # ── backtest runs (table `backtests`, 0001_init) ─────────────────────────
+    # The whole API result lives in `metrics` (it carries the OPTIMISTIC label,
+    # the metrics and the assumptions); the job id in params->>'job_id'.
+    async def add_backtest_run(self, *, user_id: UUID, run: dict) -> dict:
+        conn = await self._conn()
+        try:
+            await self._ensure_user(conn, user_id)
+            await conn.execute(
+                """
+                insert into chalybcrypto.backtests
+                  (user_id, strategy, pair, timeframe, period_start, period_end,
+                   params, metrics, optimistic)
+                values (%s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, true)
+                """,
+                (
+                    user_id, run.get("strategy"), run.get("pair"), run.get("timeframe"),
+                    run.get("from"), run.get("to"),
+                    json.dumps({"job_id": run["job_id"], "bars": run.get("bars_requested")}),
+                    json.dumps(run),
+                ),
+            )
+            return dict(run)
+        finally:
+            await conn.close()
+
+    async def list_backtest_runs(self, *, user_id: UUID, limit: int = 20) -> list[dict]:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                "select metrics from chalybcrypto.backtests "
+                "where user_id = %s and params ? 'job_id' "
+                "order by created_at desc limit %s",
+                (user_id, limit),
+            )
+            return [dict(r["metrics"]) for r in await cur.fetchall()]
+        finally:
+            await conn.close()
+
+    async def get_backtest_run(self, *, user_id: UUID, job_id: str) -> dict | None:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                "select metrics from chalybcrypto.backtests "
+                "where user_id = %s and params->>'job_id' = %s",
+                (user_id, job_id),
+            )
+            row = await cur.fetchone()
+            return dict(row["metrics"]) if row else None
+        finally:
+            await conn.close()
+
+    # ── Señales shared feed (no user) ───────────────────────────────────────
+    _FEED_COLS = (
+        "id, coin, pair, interval, state, confidence, why_short, why_bullets, explanation, "
+        "strategies, ref_price_usd, ref_price_mxn, created_at"
+    )
+
+    async def add_feed_entry(self, *, entry: dict) -> dict:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                f"""
+                insert into chalybcrypto.signal_feed
+                  (coin, pair, interval, state, confidence, why_short, why_bullets,
+                   explanation, strategies, ref_price_usd, ref_price_mxn)
+                values (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s, %s)
+                returning {self._FEED_COLS}
+                """,
+                (
+                    entry["coin"], entry["pair"], entry["interval"], entry["state"],
+                    entry["confidence"], entry["why_short"], json.dumps(entry["why_bullets"]),
+                    entry["explanation"], json.dumps(entry.get("strategies", [])),
+                    entry["ref_price_usd"], entry.get("ref_price_mxn"),
+                ),
+            )
+            return dict(await cur.fetchone())
+        finally:
+            await conn.close()
+
+    async def latest_feed_entry(self, *, coin: str) -> dict | None:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                f"select {self._FEED_COLS} from chalybcrypto.signal_feed "
+                "where coin = %s order by created_at desc limit 1",
+                (coin,),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+        finally:
+            await conn.close()
+
+    async def list_feed(self, *, since=None, limit: int = 200) -> list[dict]:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                f"select {self._FEED_COLS} from chalybcrypto.signal_feed "
+                "where (%s::timestamptz is null or created_at >= %s::timestamptz) "
+                "order by created_at desc limit %s",
+                (since, since, limit),
+            )
+            return [dict(r) for r in await cur.fetchall()]
+        finally:
+            await conn.close()
+
+    async def get_feed_entry(self, *, entry_id: UUID) -> dict | None:
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                f"select {self._FEED_COLS} from chalybcrypto.signal_feed where id = %s",
+                (entry_id,),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+        finally:
+            await conn.close()
+
     async def list_fee_schedules(self) -> list[FeeSchedule]:
         conn = await self._conn()
         try:
@@ -744,6 +900,140 @@ class PgStore:
                 """,
                 (user_id,),
             )
+            return [self._json_safe(r) for r in await cur.fetchall()]
+        finally:
+            await conn.close()
+
+    # ── usage outbox (Chalyb hub metering; see chalybcrypto_hub.outbox) ────
+
+    async def enqueue_usage_events(self, events: list) -> int:
+        """Persist UsageEvents for the drainer. Idempotent on source_id."""
+        if not events:
+            return 0
+        conn = await self._conn()
+        try:
+            inserted = 0
+            async with conn.transaction():
+                for e in events:
+                    cur = await conn.execute(
+                        """
+                        insert into chalybcrypto.usage_outbox
+                          (source_id, external_user_id, reservation_id, event)
+                        values (%s, %s, %s, %s::jsonb)
+                        on conflict (source_id) do nothing
+                        """,
+                        (
+                            e.source_id,
+                            e.external_user_id,
+                            e.reservation_id,
+                            json.dumps(e.to_wire()),
+                        ),
+                    )
+                    inserted += cur.rowcount or 0
+            return inserted
+        finally:
+            await conn.close()
+
+    async def claim_usage_outbox(self, *, limit: int, lease_seconds: int) -> list:
+        """Lease up to `limit` due pending rows. The lease is just next_attempt_at
+        pushed into the future, so a crashed drainer's rows come back on their own."""
+        from chalybcrypto_hub import OutboxRow
+
+        conn = await self._conn()
+        try:
+            cur = await conn.execute(
+                """
+                update chalybcrypto.usage_outbox o
+                   set next_attempt_at = now() + make_interval(secs => %s)
+                 where o.id in (
+                   select id from chalybcrypto.usage_outbox
+                    where status = 'pending' and next_attempt_at <= now()
+                    order by id
+                    limit %s
+                    for update skip locked
+                 )
+                returning o.id, o.external_user_id, o.event, o.attempts
+                """,
+                (lease_seconds, limit),
+            )
+            rows = await cur.fetchall()
+            return [
+                OutboxRow(
+                    id=r["id"],
+                    external_user_id=r["external_user_id"],
+                    event=r["event"],
+                    attempts=r["attempts"],
+                )
+                for r in sorted(rows, key=lambda r: r["id"])
+            ]
+        finally:
+            await conn.close()
+
+    async def mark_usage_sent(self, ids: list) -> None:
+        if not ids:
+            return
+        conn = await self._conn()
+        try:
+            await conn.execute(
+                """
+                update chalybcrypto.usage_outbox
+                   set status = 'sent', sent_at = now(), last_error = null
+                 where id = any(%s)
+                """,
+                (list(ids),),
+            )
+        finally:
+            await conn.close()
+
+    async def mark_usage_retry(self, retries: list, *, error: str) -> None:
+        if not retries:
+            return
+        conn = await self._conn()
+        try:
+            async with conn.transaction():
+                for row_id, delay in retries:
+                    await conn.execute(
+                        """
+                        update chalybcrypto.usage_outbox
+                           set attempts = attempts + 1,
+                               next_attempt_at = now() + make_interval(secs => %s),
+                               last_error = %s
+                         where id = %s and status = 'pending'
+                        """,
+                        (float(delay), error[:2000], row_id),
+                    )
+        finally:
+            await conn.close()
+
+    async def mark_usage_dead(self, ids: list, *, error: str) -> None:
+        if not ids:
+            return
+        conn = await self._conn()
+        try:
+            await conn.execute(
+                """
+                update chalybcrypto.usage_outbox
+                   set status = 'dead', attempts = attempts + 1, last_error = %s
+                 where id = any(%s)
+                """,
+                (error[:2000], list(ids)),
+            )
+        finally:
+            await conn.close()
+
+    async def list_usage_outbox(self, *, status: str | None = None) -> list[dict]:
+        """Operator/test view of the outbox."""
+        conn = await self._conn()
+        try:
+            if status is None:
+                cur = await conn.execute(
+                    "select * from chalybcrypto.usage_outbox order by id"
+                )
+            else:
+                cur = await conn.execute(
+                    "select * from chalybcrypto.usage_outbox where status = %s order by id",
+                    (status,),
+                )
             return [self._json_safe(r) for r in await cur.fetchall()]
         finally:
             await conn.close()

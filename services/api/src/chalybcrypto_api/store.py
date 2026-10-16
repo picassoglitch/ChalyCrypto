@@ -8,6 +8,7 @@ swap is mechanical.
 from __future__ import annotations
 
 from typing import Protocol
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from chalybcrypto_shared import (
@@ -52,6 +53,19 @@ class ApiStore(Protocol):
 
     # ── strategies ────────────────────────────────────────
     async def list_strategies(self) -> list[dict]: ...
+
+    # Señales delivery preferences from the hub (filters only; never content).
+    async def get_signal_prefs(self, *, user_id: UUID) -> dict | None: ...
+    async def put_signal_prefs(self, *, user_id: UUID, prefs: dict) -> dict: ...
+
+    # Backtest runs (per user) and the Señales shared feed (no user).
+    async def add_backtest_run(self, *, user_id: UUID, run: dict) -> dict: ...
+    async def list_backtest_runs(self, *, user_id: UUID, limit: int = 20) -> list[dict]: ...
+    async def get_backtest_run(self, *, user_id: UUID, job_id: str) -> dict | None: ...
+    async def add_feed_entry(self, *, entry: dict) -> dict: ...
+    async def latest_feed_entry(self, *, coin: str) -> dict | None: ...
+    async def list_feed(self, *, since: datetime | None = None, limit: int = 200) -> list[dict]: ...
+    async def get_feed_entry(self, *, entry_id: UUID) -> dict | None: ...
 
     # ── tenants (Chalyb integration) ─────────────────────────────────
     async def provision_tenant(
@@ -99,6 +113,10 @@ class InMemoryStore:
         ]
         self._connections: list[dict] = []
         self._tenants: list[dict] = []
+        self._usage_outbox: list[dict] = []
+        self._signal_prefs: dict[UUID, dict] = {}
+        self._backtest_runs: list[dict] = []
+        self._feed: list[dict] = []
 
     async def list_signals(self, *, user_id: UUID, status: str | None = None) -> list[dict]:
         out = [s for s in self._signals if s["user_id"] == user_id]
@@ -254,6 +272,50 @@ class InMemoryStore:
         self._fee_schedules = list(schedules)
         return self._fee_schedules
 
+    async def get_signal_prefs(self, *, user_id: UUID) -> dict | None:
+        p = self._signal_prefs.get(user_id)
+        return dict(p) if p is not None else None
+
+    async def put_signal_prefs(self, *, user_id: UUID, prefs: dict) -> dict:
+        self._signal_prefs[user_id] = dict(prefs)
+        return dict(prefs)
+
+    async def add_backtest_run(self, *, user_id: UUID, run: dict) -> dict:
+        row = {**run, "user_id": user_id}
+        self._backtest_runs.append(row)
+        return dict(run)
+
+    async def list_backtest_runs(self, *, user_id: UUID, limit: int = 20) -> list[dict]:
+        rows = [r for r in self._backtest_runs if r["user_id"] == user_id]
+        return [
+            {k: v for k, v in r.items() if k != "user_id"} for r in reversed(rows)
+        ][:limit]
+
+    async def get_backtest_run(self, *, user_id: UUID, job_id: str) -> dict | None:
+        for r in self._backtest_runs:
+            if r["user_id"] == user_id and r["job_id"] == job_id:
+                return {k: v for k, v in r.items() if k != "user_id"}
+        return None
+
+    async def add_feed_entry(self, *, entry: dict) -> dict:
+        from datetime import UTC, datetime
+
+        row = {**entry, "id": uuid4(), "created_at": entry.get("created_at") or datetime.now(UTC)}
+        self._feed.append(row)
+        return dict(row)
+
+    async def latest_feed_entry(self, *, coin: str) -> dict | None:
+        rows = [r for r in self._feed if r["coin"] == coin]
+        return dict(max(rows, key=lambda r: r["created_at"])) if rows else None
+
+    async def list_feed(self, *, since=None, limit: int = 200) -> list[dict]:
+        rows = [r for r in self._feed if since is None or r["created_at"] >= since]
+        rows.sort(key=lambda r: r["created_at"], reverse=True)
+        return [dict(r) for r in rows[:limit]]
+
+    async def get_feed_entry(self, *, entry_id: UUID) -> dict | None:
+        return next((dict(r) for r in self._feed if r["id"] == entry_id), None)
+
     async def list_strategies(self) -> list[dict]:
         return list(self._strategies)
 
@@ -338,3 +400,82 @@ class InMemoryStore:
             for c in self._connections
             if c["user_id"] == user_id
         ]
+
+    # ── usage outbox (mirror of PgStore's; process-local, dev/tests only) ──
+
+    async def enqueue_usage_events(self, events: list) -> int:
+        from datetime import UTC, datetime
+
+        existing = {r["source_id"] for r in self._usage_outbox}
+        inserted = 0
+        for e in events:
+            if e.source_id in existing:
+                continue
+            existing.add(e.source_id)
+            self._usage_outbox.append(
+                {
+                    "id": len(self._usage_outbox) + 1,
+                    "source_id": e.source_id,
+                    "external_user_id": e.external_user_id,
+                    "reservation_id": e.reservation_id,
+                    "event": e.to_wire(),
+                    "status": "pending",
+                    "attempts": 0,
+                    "next_attempt_at": datetime.now(UTC),
+                    "last_error": None,
+                }
+            )
+            inserted += 1
+        return inserted
+
+    async def claim_usage_outbox(self, *, limit: int, lease_seconds: int) -> list:
+        from datetime import UTC, datetime, timedelta
+
+        from chalybcrypto_hub import OutboxRow
+
+        now = datetime.now(UTC)
+        due = [
+            r for r in self._usage_outbox
+            if r["status"] == "pending" and r["next_attempt_at"] <= now
+        ][:limit]
+        for r in due:
+            r["next_attempt_at"] = now + timedelta(seconds=lease_seconds)
+        return [
+            OutboxRow(
+                id=r["id"],
+                external_user_id=r["external_user_id"],
+                event=r["event"],
+                attempts=r["attempts"],
+            )
+            for r in due
+        ]
+
+    def _outbox_rows(self, ids) -> list[dict]:
+        wanted = set(ids)
+        return [r for r in self._usage_outbox if r["id"] in wanted]
+
+    async def mark_usage_sent(self, ids: list) -> None:
+        for r in self._outbox_rows(ids):
+            r["status"] = "sent"
+            r["last_error"] = None
+
+    async def mark_usage_retry(self, retries: list, *, error: str) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        now = datetime.now(UTC)
+        delays = dict(retries)
+        for r in self._outbox_rows(delays):
+            if r["status"] != "pending":
+                continue
+            r["attempts"] += 1
+            r["next_attempt_at"] = now + timedelta(seconds=delays[r["id"]])
+            r["last_error"] = error
+
+    async def mark_usage_dead(self, ids: list, *, error: str) -> None:
+        for r in self._outbox_rows(ids):
+            r["status"] = "dead"
+            r["attempts"] += 1
+            r["last_error"] = error
+
+    async def list_usage_outbox(self, *, status: str | None = None) -> list[dict]:
+        return [dict(r) for r in self._usage_outbox if status is None or r["status"] == status]

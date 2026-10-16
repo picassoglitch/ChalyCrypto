@@ -54,6 +54,9 @@ class ProvisionRequest(BaseModel):
 
 
 _VALID_TIERS = {"free", "pro", "all_access"}
+# The hub sends its own tier names lowercased (free | pro | partner | vip);
+# tenants.tier keeps this engine's vocabulary.
+_HUB_TIERS = {"vip": "all_access", "partner": "pro"}
 
 
 @admin_router.post("/tenants")
@@ -64,7 +67,8 @@ async def provision_tenant(
 ) -> dict:
     """Create or return an existing tenant. Idempotent on external_user_id.
     Returns 200 (created or existing) with {tenant_id, api_token}."""
-    if body.tier not in _VALID_TIERS:
+    tier = _HUB_TIERS.get(body.tier, body.tier)
+    if tier not in _VALID_TIERS:
         raise HTTPException(
             status_code=400,
             detail=f"tier must be one of {sorted(_VALID_TIERS)}",
@@ -73,7 +77,7 @@ async def provision_tenant(
         external_user_id=body.external_user_id,
         email=body.email,
         display_name=body.display_name,
-        tier=body.tier,
+        tier=tier,
     )
     # chalyb expects {tenant_id, api_token} regardless of whether it's fresh
     # or a re-grant. The integration treats 200/201/409 all the same.

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -9,7 +11,12 @@ from fastapi.responses import FileResponse, RedirectResponse
 
 from chalybcrypto_shared import get_settings
 
+from chalybcrypto_hub import run_drain_loop
+
 from .admin import admin_router
+from .consumption import get_hub_client
+from .deps import get_store
+from .hub_api import HUB_API_PREFIX, build_hub_app
 from .routes import router as api_router
 from .sso import sso_router
 
@@ -24,7 +31,30 @@ def _cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
-app = FastAPI(title="ChalyCrypto API", version="0.0.1")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """Drain the usage outbox to the Chalyb hub in the background. Only when the
+    hub is configured (CHALYB_BASE_URL) and the store has an outbox; set
+    CHALYBCRYPTO_USAGE_DRAIN=0 to run the drainer elsewhere (e.g. the worker)."""
+    hub = get_hub_client()
+    store = get_store()
+    task: asyncio.Task | None = None
+    stop = asyncio.Event()
+    enabled = os.environ.get("CHALYBCRYPTO_USAGE_DRAIN", "1").strip() not in ("0", "false", "no")
+    if enabled and hub is not None and hasattr(store, "claim_usage_outbox"):
+        interval = float(os.environ.get("CHALYBCRYPTO_USAGE_DRAIN_INTERVAL", "15"))
+        task = asyncio.create_task(
+            run_drain_loop(store, hub, interval_seconds=interval, stop=stop)  # type: ignore[arg-type]
+        )
+    try:
+        yield
+    finally:
+        if task is not None:
+            stop.set()
+            await task
+
+
+app = FastAPI(title="ChalyCrypto API", version="0.0.1", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
@@ -35,6 +65,10 @@ app.add_middleware(
 app.include_router(api_router)
 app.include_router(admin_router)
 app.include_router(sso_router)
+# The hub's server-to-server API (Bearer hub token only), its own app so
+# its auth override never touches /api/*. See hub_api.py for the contract.
+hub_app = build_hub_app()
+app.mount(HUB_API_PREFIX, hub_app)
 
 _DASHBOARD_DIR = Path(__file__).parent / "dashboard"
 
@@ -45,15 +79,30 @@ def health() -> dict[str, str]:
     return {"status": "ok", "env": s.app_env}
 
 
+def _hub_redirect_url() -> str | None:
+    """CHALYBCRYPTO_REDIRECT_TO_HUB=1: the user pages (/ and /dashboard) send
+    people to Señales inside the hub. Default off, so the old panel keeps
+    working until the cutover. Flipping it back is the rollback. The API,
+    /auth/*, /api/admin/* and /api/hub/v1/* are unaffected."""
+    if os.environ.get("CHALYBCRYPTO_REDIRECT_TO_HUB", "").strip().lower() not in ("1", "true", "yes"):
+        return None
+    base = (os.environ.get("CHALYB_BASE_URL") or "https://www.chalyb.com").strip().rstrip("/")
+    return f"{base}/app/senales"
+
+
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
-    """Friendly landing — send browsers to the dashboard."""
-    return RedirectResponse(url="/dashboard")
+    """Friendly landing — send browsers to the dashboard (or the hub)."""
+    return RedirectResponse(url=_hub_redirect_url() or "/dashboard")
 
 
-@app.get("/dashboard", include_in_schema=False)
-def dashboard_index() -> FileResponse:
+@app.get("/dashboard", include_in_schema=False, response_model=None)
+def dashboard_index() -> FileResponse | RedirectResponse:
     """Serve the single-page dashboard. Per ARCHITECTURE, the production dashboard
     lives inside chalyb.com; this is the in-repo demo UI so the API is testable
-    without spinning up Next.js."""
+    without spinning up Next.js. With CHALYBCRYPTO_REDIRECT_TO_HUB on, it
+    redirects to /app/senales in the hub instead."""
+    hub = _hub_redirect_url()
+    if hub:
+        return RedirectResponse(url=hub, status_code=302)
     return FileResponse(_DASHBOARD_DIR / "index.html")

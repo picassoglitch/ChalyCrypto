@@ -7,19 +7,22 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Workspace layout — the api package depends on shared + connectors + engine
+# Workspace layout — the api package depends on shared + hub + connectors + engine
 # at runtime (routes.py imports the Bitunix client for the /api/klines proxy
 # and the engine's RSI/MACD/ADX indicators for /api/indicators), so the build
-# needs all four in the context. Build context is the repo root — enforced by
+# needs all five in the context. (hub = Chalyb consumption client: admission +
+# usage outbox drain.) Build context is the repo root — enforced by
 # cloudbuild.yaml's build step (`docker build -f services/api/Dockerfile .`)
 # and mirrored by railway.json's dockerfilePath = services/api/Dockerfile.
 COPY packages/shared/ /app/packages/shared/
+COPY packages/hub/    /app/packages/hub/
 COPY connectors/     /app/connectors/
 COPY services/engine/ /app/services/engine/
 COPY services/api/   /app/services/api/
 
 RUN pip install \
       /app/packages/shared \
+      /app/packages/hub \
       /app/connectors \
       /app/services/engine \
       /app/services/api

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chalybcrypto-hub"
+version = "0.0.1"
+description = "Chalyb hub consumption client (admit/settle/usage), price table, usage outbox drain."
+requires-python = ">=3.12"
+dependencies = [
+  "httpx>=0.27,<1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
