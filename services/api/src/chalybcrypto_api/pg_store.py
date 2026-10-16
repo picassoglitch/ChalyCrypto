@@ -39,7 +39,12 @@ class PgStore:
         self._dsn = dsn
 
     async def _conn(self) -> psycopg.AsyncConnection:
-        return await psycopg.AsyncConnection.connect(self._dsn, autocommit=True, row_factory=dict_row)
+        # prepare_threshold=None: no server-side prepared statements, which
+        # Supabase's transaction pooler (port 6543) can't keep across
+        # transactions. Harmless on a direct or session-pooler DSN.
+        return await psycopg.AsyncConnection.connect(
+            self._dsn, autocommit=True, row_factory=dict_row, prepare_threshold=None
+        )
 
     async def _ensure_user(self, conn: psycopg.AsyncConnection, user_id: UUID) -> None:
         """Insert user row if missing.
