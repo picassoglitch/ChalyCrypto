@@ -14,7 +14,7 @@ Differences from the SSO launch token, so one can never stand in for the other:
     URL and can end up in logs; it is refused here. /auth/sso refuses this aud.
   * `exp` must be in the future and at most HUB_TOKEN_MAX_TTL_SECONDS away, so
     a leaked token is short-lived even if the hub mis-set its lifetime.
-  * `user_id` must be a UUID: it is the hub user id, the same id the SSO flow
+  * `user_id` must be a UUID (email is optional): it is the hub user id, the same id the SSO flow
     uses as the session `sub`, so a person sees the same data either way.
 
 No cookie, no X-User-Id, no Supabase JWT is accepted on /api/hub/v1, whatever
@@ -86,8 +86,10 @@ def verify_hub_token(token: str, *, now: float | None = None) -> HubPrincipal:
         user_id = UUID(str(claims.get("user_id")))
     except (TypeError, ValueError):
         raise bad from None
-    email = claims.get("email")
-    if not isinstance(email, str) or not email:
+    # Email is informational (the hub's adapter may only know the user id);
+    # when present it must be a string.
+    email = claims.get("email", "")
+    if not isinstance(email, str):
         raise bad
     tier = claims.get("tier")
     tenant_id = claims.get("tenant_id")

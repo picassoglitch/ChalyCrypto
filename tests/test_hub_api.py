@@ -170,12 +170,18 @@ def test_missing_or_malformed_token_is_401(client, headers):
         {"exp": ...},
         {"user_id": "not-a-uuid"},
         {"user_id": ...},
-        {"email": ""},
-        {"email": ...},
+        {"email": 123},
     ],
 )
 def test_bad_claims_are_401(client, over):
     assert client.get(f"{V1}/signals", headers=bearer(**over)).status_code == 401
+
+
+@pytest.mark.parametrize("email", ["", ...])
+def test_email_is_optional(client, email):
+    r = client.get(f"{V1}/me", headers=bearer(email=email))
+    assert r.status_code == 200
+    assert r.json()["email"] == ""
 
 
 def test_wrong_secret_is_401(client):
