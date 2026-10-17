@@ -13,6 +13,7 @@ dev/test mode where admission is skipped and the outbox is never drained.
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from typing import Any
@@ -32,12 +33,40 @@ class HubUnavailable(HubError):
 
 
 class HubRejected(HubError):
-    """Permanent 4xx (other than 408/429). Do not retry the same payload."""
+    """A 4xx other than 408/429. Whether it is about the payload (don't resend it)
+    or about our config (resend once fixed) is `rejects_payload`'s call."""
 
     def __init__(self, status_code: int, body: str) -> None:
         super().__init__(f"hub rejected request: {status_code} {body[:500]}")
         self.status_code = status_code
         self.body = body
+
+    @property
+    def json(self) -> dict[str, Any]:
+        try:
+            data = json.loads(self.body)
+        except ValueError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    @property
+    def error(self) -> str:
+        err = self.json.get("error")
+        return err if isinstance(err, str) else ""
+
+
+# Statuses the hub uses to reject what we sent (POST /usage validation: 400 bad
+# field, 413 too many events, 422 out of range; 409 on a closed reservation).
+_PAYLOAD_REJECTIONS = (400, 409, 413, 422)
+
+
+def rejects_payload(e: HubRejected) -> bool:
+    """True when the hub refused this payload for good. False for auth/config
+    (401/403 bearer, 404 unknown engine/user or a wrong base URL's 404 page, any
+    "engine not registered"), which the same payload passes once fixed."""
+    if "engine" in e.error.lower():
+        return False
+    return e.status_code in _PAYLOAD_REJECTIONS
 
 
 def is_retryable_status(code: int) -> bool:

@@ -167,13 +167,37 @@ async def test_poison_event_is_isolated_from_its_batch():
     assert by_source[good[0].source_id] == by_source[good[1].source_id] == "sent"
 
 
-async def test_unknown_user_404_dead_letters_whole_group_without_split():
+@pytest.mark.parametrize(
+    "resp",
+    [
+        httpx.Response(401, json={"error": "missing bearer token"}),
+        httpx.Response(403, json={"error": "invalid bearer token"}),
+        httpx.Response(404, json={"error": "unknown engine: chalybcrypto"}),
+        httpx.Response(404, json={"error": "unknown user_id"}),
+        httpx.Response(404, text="<html>This page could not be found</html>"),
+    ],
+    ids=["401", "403", "404-engine", "404-user", "404-wrong-base-url"],
+)
+async def test_auth_or_config_4xx_keeps_events_for_retry(resp, caplog):
+    """A rotated/mismatched token (or any other config 4xx) says nothing about the
+    events: they stay pending with backoff, it's logged at ERROR, and they land
+    once the config is fixed — never dead-lettered, never split."""
     store = InMemoryStore()
-    await store.enqueue_usage_events([_evt("ghost"), _evt("ghost")])
-    hub, seen = _hub(lambda req, body: httpx.Response(404, json={"error": "unknown user_id"}))
-    stats = await drain_outbox(store, hub)
-    assert stats.dead == 2
+    await store.enqueue_usage_events([_evt(), _evt()])
+    codes = iter([resp, httpx.Response(200, json={"ok": True})])
+    hub, seen = _hub(lambda req, body: next(codes))
+
+    with caplog.at_level(logging.ERROR, logger="chalybcrypto_hub.outbox"):
+        stats = await drain_outbox(store, hub)
+
+    assert (stats.dead, stats.retried) == (0, 2)
     assert len(seen) == 1
+    rows = await store.list_usage_outbox()
+    assert {r["status"] for r in rows} == {"pending"}
+    assert all(r["attempts"] == 1 and r["next_attempt_at"] > datetime.now(UTC) for r in rows)
+    assert any("config/auth" in r.message for r in caplog.records)
+    _make_due(store)
+    assert (await drain_outbox(store, hub)).sent == 2
 
 
 def test_backoff_grows_and_caps():
