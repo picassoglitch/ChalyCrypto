@@ -190,6 +190,13 @@ def test_wrong_secret_is_401(client):
     assert r.status_code == 401
 
 
+def test_non_ascii_signature_is_401_not_500(client):
+    body, _ = _sign(_claims()).split(".")
+    # Headers arrive latin-1 decoded, so a byte like 0xE9 becomes "é" in the token.
+    r = client.get(f"{V1}/me", headers={"Authorization": b"Bearer " + body.encode() + b".\xe9sig"})
+    assert r.status_code == 401
+
+
 def test_tampered_body_is_401(client):
     tok = _sign(_claims(ALICE))
     _, sig = tok.split(".")
