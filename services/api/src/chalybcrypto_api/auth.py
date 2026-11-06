@@ -44,6 +44,12 @@ def _on_cloud_run() -> bool:
     return bool(os.environ.get("K_SERVICE"))
 
 
+def auth_mode() -> str:
+    """Public alias of the resolved auth mode ('jwt' or 'stub'). Raises 503 on a
+    Cloud Run revision configured for anything but jwt (fail closed)."""
+    return _mode()
+
+
 def _mode() -> str:
     default = "jwt" if _on_cloud_run() else _DEFAULT_MODE
     mode = (os.environ.get("CHALYBCRYPTO_AUTH") or default).strip().lower()

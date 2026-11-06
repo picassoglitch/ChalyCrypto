@@ -7,6 +7,7 @@ Contract (versioned; additive changes only within v1):
   Routes   Every /api/<route> of routes.py, same handlers and same business
            rules, at /api/hub/v1/<route> — except:
              PUT /fee-schedules  global table, not a per-user action
+             GET /me             the panel's cookie view; the hub's own /me is below
              GET /stream         SSE skeleton, no data yet
            plus the hub-only routes below:
              GET /me                     who the token is for
@@ -43,6 +44,7 @@ HUB_API_PREFIX = "/api/hub/v1"
 
 _EXCLUDED: set[tuple[str, str]] = {
     ("/fee-schedules", "PUT"),
+    ("/me", "GET"),
     ("/stream", "GET"),
 }
 
