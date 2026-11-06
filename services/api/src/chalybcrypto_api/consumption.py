@@ -26,7 +26,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
-from chalybcrypto_hub import AdmitResult, HubClient, HubError
+from chalybcrypto_hub import AdmitResult, HubClient, HubError, HubRejected
 
 log = logging.getLogger(__name__)
 
@@ -104,6 +104,28 @@ async def admitted(
             source_minutes=source_minutes,
             boost=boost,
         )
+    except HubRejected as e:
+        # The hub answers real refusals with 200 + allowed=false; a 4xx that still
+        # carries a refusal `reason` is shown the same way.
+        reason = e.json.get("reason")
+        if isinstance(reason, str) and reason:
+            raise HTTPException(
+                status_code=status_for_reason(reason),
+                detail={"error": "usage_refused", "reason": reason, "operation": operation},
+            ) from e
+        log.error("hub admit rejected for %s (%s): %s", operation, external_job_id, e)
+        if e.status_code == 404 and e.error == "unknown user_id":
+            # The account, not the hub: retrying in a few minutes won't help.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"error": "unknown_user", "operation": operation},
+            ) from e
+        # 401/403 bearer, 404 unknown engine, 400 a request we built wrong: our
+        # config. Still fail closed as hub_unavailable.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "hub_unavailable", "operation": operation},
+        ) from e
     except HubError as e:
         log.error("hub admit failed for %s (%s): %s", operation, external_job_id, e)
         raise HTTPException(

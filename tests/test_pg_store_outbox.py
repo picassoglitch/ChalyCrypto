@@ -47,3 +47,26 @@ async def test_pg_outbox_enqueue_claim_send_dead(db_dsn):
     dead = await store.list_usage_outbox(status="dead")
     assert len(dead) == 1 and "422" in dead[0]["last_error"]
     assert json.loads(json.dumps(dead[0]["event"]))["kind"] == "llm.tokens"
+
+
+def _hub_json(code: int, body: dict) -> HubClient:
+    t = httpx.MockTransport(lambda req: httpx.Response(code, json=body))
+    return HubClient(base_url="https://hub.test", token="t", client=httpx.AsyncClient(transport=t))
+
+
+async def test_pg_outbox_config_4xx_retries_and_unknown_user_goes_dead(db_dsn):
+    store = PgStore(db_dsn)
+    with psycopg.connect(db_dsn, autocommit=True) as c:
+        c.execute("truncate chalybcrypto.usage_outbox")
+    await store.enqueue_usage_events([_evt("pg-u3"), _evt("pg-u3")])
+
+    stats = await drain_outbox(store, _hub_json(401, {"error": "invalid bearer token"}))
+    assert (stats.retried, stats.dead) == (2, 0)
+    assert {r["status"] for r in await store.list_usage_outbox()} == {"pending"}
+
+    with psycopg.connect(db_dsn, autocommit=True) as c:
+        c.execute("update chalybcrypto.usage_outbox set next_attempt_at = now()")
+    stats = await drain_outbox(store, _hub_json(404, {"error": "unknown user_id"}))
+    assert stats.dead == 2
+    dead = await store.list_usage_outbox(status="dead")
+    assert len(dead) == 2 and all("unknown user_id" in r["last_error"] for r in dead)
