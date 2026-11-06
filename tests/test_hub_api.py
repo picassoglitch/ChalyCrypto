@@ -251,6 +251,10 @@ def test_excluded_routes_are_not_on_v1(client):
     assert client.put(f"{V1}/fee-schedules", headers=h, json=[]).status_code == 405
     assert client.get(f"{V1}/fee-schedules", headers=h).status_code == 200
     assert client.get(f"{V1}/stream", headers=h).status_code == 404
+    # The panel's cookie /api/me must not shadow-register under the hub's own /me.
+    from chalybcrypto_api.hub_api import _engine_routes
+
+    assert "/me" not in {getattr(r, "path", None) for r in _engine_routes().routes}
 
 
 def test_v1_has_no_public_docs(client):
