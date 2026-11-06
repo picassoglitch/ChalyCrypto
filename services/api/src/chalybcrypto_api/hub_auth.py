@@ -65,7 +65,8 @@ def verify_hub_token(token: str, *, now: float | None = None) -> HubPrincipal:
     if not body or not sig:
         raise bad
     secret = _sso_secret()  # 500 when the engine isn't configured
-    if not hmac.compare_digest(_b64url_sig(secret, body), sig):
+    # Bytes, not str: compare_digest raises TypeError on non-ASCII str (a 500).
+    if not hmac.compare_digest(_b64url_sig(secret, body).encode("ascii"), sig.encode("utf-8")):
         raise bad
     try:
         pad = "=" * (-len(body) % 4)
