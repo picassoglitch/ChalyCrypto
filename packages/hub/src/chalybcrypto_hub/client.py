@@ -60,10 +60,19 @@ class HubRejected(HubError):
 _PAYLOAD_REJECTIONS = (400, 409, 413, 422)
 
 
+def is_unknown_user(e: HubRejected) -> bool:
+    """The hub has no profile for this user (deleted account). The hub checks it
+    before validating events, so retrying never ends; the rows go dead instead."""
+    return e.status_code == 404 and e.error == "unknown user_id"
+
+
 def rejects_payload(e: HubRejected) -> bool:
-    """True when the hub refused this payload for good. False for auth/config
-    (401/403 bearer, 404 unknown engine/user or a wrong base URL's 404 page, any
-    "engine not registered"), which the same payload passes once fixed."""
+    """True when the hub refused this payload for good: a validation status, or
+    the user no longer exists. False for auth/config (401/403 bearer, 404 unknown
+    engine or a wrong base URL's 404 page, any "engine not registered"), which
+    the same payload passes once fixed."""
+    if is_unknown_user(e):
+        return True
     if "engine" in e.error.lower():
         return False
     return e.status_code in _PAYLOAD_REJECTIONS

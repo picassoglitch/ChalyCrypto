@@ -173,10 +173,9 @@ async def test_poison_event_is_isolated_from_its_batch():
         httpx.Response(401, json={"error": "missing bearer token"}),
         httpx.Response(403, json={"error": "invalid bearer token"}),
         httpx.Response(404, json={"error": "unknown engine: chalybcrypto"}),
-        httpx.Response(404, json={"error": "unknown user_id"}),
         httpx.Response(404, text="<html>This page could not be found</html>"),
     ],
-    ids=["401", "403", "404-engine", "404-user", "404-wrong-base-url"],
+    ids=["401", "403", "404-engine", "404-wrong-base-url"],
 )
 async def test_auth_or_config_4xx_keeps_events_for_retry(resp, caplog):
     """A rotated/mismatched token (or any other config 4xx) says nothing about the
@@ -198,6 +197,21 @@ async def test_auth_or_config_4xx_keeps_events_for_retry(resp, caplog):
     assert any("config/auth" in r.message for r in caplog.records)
     _make_due(store)
     assert (await drain_outbox(store, hub)).sent == 2
+
+
+async def test_unknown_user_dead_letters_the_group_without_retrying(caplog):
+    """A deleted Chalyb account: the hub answers 404 before validating, so a retry
+    never ends. Every row of that user goes dead (kept, logged) in one call."""
+    store = InMemoryStore()
+    await store.enqueue_usage_events([_evt(), _evt()])
+    hub, seen = _hub(lambda req, body: httpx.Response(404, json={"error": "unknown user_id"}))
+
+    with caplog.at_level(logging.ERROR, logger="chalybcrypto_hub.outbox"):
+        stats = await drain_outbox(store, hub)
+
+    assert (stats.dead, stats.retried, len(seen)) == (2, 0, 1)
+    assert {r["status"] for r in await store.list_usage_outbox()} == {"dead"}
+    assert any("permanently rejected" in r.message for r in caplog.records)
 
 
 def test_backoff_grows_and_caps():

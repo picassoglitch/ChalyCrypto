@@ -9,7 +9,9 @@ ships them to POST /usage in batches of at most 100 with backoff.
   400 / 413 / 422       → the hub rejected the events' contents: the batch is split
                           so only the offending row is marked dead + logged at ERROR
                           (never dropped)
-  401 / 403 / 404 / any other 4xx
+  404 unknown user_id   → every row of that user marked dead + logged at ERROR (the
+                          account is gone; retrying never ends)
+  401 / 403 / other 404 / any other 4xx
                         → our config, not the events (rotated or mismatched token,
                           engine not registered, unknown user, wrong base URL): rows
                           rescheduled with the same backoff and logged at ERROR.
@@ -36,6 +38,7 @@ from .client import (
     HubClient,
     HubRejected,
     HubUnavailable,
+    is_unknown_user,
     rejects_payload,
 )
 from .pricing import llm_cost_usd_micros, normalize_model
@@ -193,8 +196,9 @@ async def _send_group(
             stats.retried += len(rows)
             return
         # The hub rejects the whole request for one bad event. Split so one poison
-        # row doesn't dead-letter its neighbours.
-        if len(rows) > 1:
+        # row doesn't dead-letter its neighbours. An unknown user is the same answer
+        # for every row of the group, so no split.
+        if len(rows) > 1 and not is_unknown_user(e):
             for r in rows:
                 await _send_group(store, client, user_id, [r], stats)
             return
