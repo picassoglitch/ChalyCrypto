@@ -68,6 +68,10 @@ def _decode_launch_token(token: str) -> dict:
     exp = payload.get("exp")
     if not isinstance(exp, (int, float)) or exp < time.time():
         raise HTTPException(status_code=401, detail="launch token expired")
+    # A hub API token (hub_auth.py) is for server-to-server calls only; it must
+    # never become a 24h browser session.
+    if payload.get("aud") is not None:
+        raise HTTPException(status_code=401, detail="not a launch token")
     for required in ("user_id", "email"):
         if required not in payload:
             raise HTTPException(status_code=401, detail=f"launch token missing {required}")

@@ -185,6 +185,19 @@ def test_settings_loads_with_defaults(monkeypatch):
     assert s.fee_bitunix_taker_bps == Decimal("6.0")
 
 
+def test_settings_app_env_is_production_on_cloud_run(monkeypatch):
+    # Live showed "Conectado · env=local": APP_ENV is unset on the service.
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("K_SERVICE", "chalybcrypto")
+    assert Settings(_env_file=None).app_env == "production"
+
+
+def test_settings_app_env_explicit_value_wins(monkeypatch):
+    monkeypatch.setenv("K_SERVICE", "chalybcrypto")
+    monkeypatch.setenv("APP_ENV", "staging")
+    assert Settings(_env_file=None).app_env == "staging"
+
+
 def test_fee_schedule_seed_produces_three_rows():
     s = Settings(_env_file=None)
     rows = seed_fee_schedules(s, now=NOW)

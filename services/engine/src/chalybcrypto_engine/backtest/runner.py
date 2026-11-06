@@ -54,13 +54,20 @@ class Backtester:
         risk_per_trade_bps: Decimal = Decimal("50"),
         leverage: Decimal | None = None,
         bar_hours: Decimal = Decimal("1") / Decimal("12"),  # default 5m
+        lookback: int | None = None,
     ) -> None:
+        """`lookback`: bars of history each evaluate() sees (None = all so far).
+        The live scanner evaluates on its last 300 bars, so a window matches what
+        the strategy sees in paper/live and keeps the run linear in bars."""
         self._strategy = strategy
         self._fill_model = fill_model
         self._starting_equity = starting_equity
         self._risk_per_trade_bps = risk_per_trade_bps
         self._leverage = leverage
         self._bar_hours = bar_hours
+        if lookback is not None and lookback < 2:
+            raise ValueError("lookback must be >= 2")
+        self._lookback = lookback
 
     def run(
         self,
@@ -79,7 +86,9 @@ class Backtester:
                 pair=pair,
                 exchange=exchange,
                 taken_at=klines[i].close_time,
-                klines=klines[: i + 1],
+                klines=klines[
+                    (0 if self._lookback is None else max(0, i + 1 - self._lookback)) : i + 1
+                ],
                 mark_price=klines[i].close,
             )
             ctx = StrategyContext(now=klines[i].close_time)

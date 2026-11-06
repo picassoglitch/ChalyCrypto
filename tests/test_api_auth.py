@@ -251,3 +251,25 @@ def test_jwks_path_rejects_wrong_audience(jwks_client_and_keys):
     )
     r = c.get("/api/signals", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 401
+
+
+# ── Cloud Run: fail closed ─────────────────────────────────────────────────
+
+
+def test_cloud_run_defaults_to_jwt(monkeypatch):
+    """K_SERVICE is set by Cloud Run. With CHALYBCRYPTO_AUTH unset, a header
+    alone must not pick the user."""
+    monkeypatch.setenv("K_SERVICE", "chalybcrypto")
+    monkeypatch.delenv("CHALYBCRYPTO_AUTH", raising=False)
+    with TestClient(app) as c:
+        r = c.get("/api/signals", headers={"X-User-Id": str(USER)})
+    assert r.status_code == 401
+    assert "X-User-Id" not in r.text
+
+
+def test_cloud_run_refuses_stub(monkeypatch):
+    monkeypatch.setenv("K_SERVICE", "chalybcrypto")
+    monkeypatch.setenv("CHALYBCRYPTO_AUTH", "stub")
+    with TestClient(app) as c:
+        r = c.get("/api/signals", headers={"X-User-Id": str(USER)})
+    assert r.status_code == 503
