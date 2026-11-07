@@ -5,7 +5,8 @@ What the Chalyb hub shows in /app/senales (REVISION-LEGAL C1 in the hub):
     candles. No account, balance, holding, risk profile or user anywhere.
   * no trade setup: no entry, stop, take-profit or leverage leaves this module.
     Only the direction the strategies agree on (buy / sell / wait), how many
-    agree, and a plain-Spanish "por qué" about the PRICE.
+    agree, and a plain-language "por qué" about the PRICE (Spanish stored,
+    English rendered at read time when the hub asks for `lang=en`).
   * text is written from templates and checked against the hub's banned
     phrases (FEED_TEXT_BANNED, mirrored from the hub's SIGNAL_TEXT_BANNED).
 
@@ -79,6 +80,97 @@ def _pct(v: Decimal) -> str:
     return f"{abs(v):.1f}"
 
 
+# Rows are stored in Spanish; English is rendered at read time from the same
+# keys so old rows translate too ("Visible text only", Aldo 2026-11-07).
+FEED_TEXTS: dict[str, dict[str, str]] = {
+    "es": {
+        "short_buy": "Las lecturas del precio en las últimas horas apuntan hacia arriba.",
+        "short_sell": "Las lecturas del precio en las últimas horas apuntan hacia abajo.",
+        "short_wait": "No hay una dirección clara por ahora. Te avisamos cuando la haya.",
+        "change_flat": "En las últimas 24 horas casi no se movió.",
+        "change_up": "En las últimas 24 horas subió {pct}%.",
+        "change_down": "En las últimas 24 horas bajó {pct}%.",
+        "adx_none": "Todavía no hay datos para medir la fuerza de la tendencia.",
+        "adx_high": "La fuerza de la tendencia (ADX) está en {adx}: es alta.",
+        "adx_moderate": "La fuerza de la tendencia (ADX) está en {adx}: es moderada.",
+        "adx_low": "La fuerza de la tendencia (ADX) está en {adx}: es baja.",
+        "rsi_none": "Todavía no hay datos para el RSI.",
+        "rsi_high": "El RSI está en {rsi}: subió rápido en poco tiempo.",
+        "rsi_low": "El RSI está en {rsi}: bajó rápido en poco tiempo.",
+        "rsi_mid": "El RSI está en {rsi}: en una zona media.",
+        "explain_split": "Las estrategias de Señales no coinciden en una dirección.",
+        "explain_none": "Ninguna estrategia de Señales ve una dirección clara.",
+        "explain_agree": "{agree} de {total} estrategias de Señales coinciden en esta lectura.",
+    },
+    "en": {
+        "short_buy": "Price readings over the last few hours point up.",
+        "short_sell": "Price readings over the last few hours point down.",
+        "short_wait": "No clear direction for now. We'll let you know when there is one.",
+        "change_flat": "It barely moved in the last 24 hours.",
+        "change_up": "In the last 24 hours it rose {pct}%.",
+        "change_down": "In the last 24 hours it fell {pct}%.",
+        "adx_none": "There is no data yet to measure the trend's strength.",
+        "adx_high": "Trend strength (ADX) is at {adx}: high.",
+        "adx_moderate": "Trend strength (ADX) is at {adx}: moderate.",
+        "adx_low": "Trend strength (ADX) is at {adx}: low.",
+        "rsi_none": "There is no RSI data yet.",
+        "rsi_high": "RSI is at {rsi}: it rose fast in a short time.",
+        "rsi_low": "RSI is at {rsi}: it fell fast in a short time.",
+        "rsi_mid": "RSI is at {rsi}: in a middle zone.",
+        "explain_split": "The Signals strategies don't agree on a direction.",
+        "explain_none": "No Signals strategy sees a clear direction.",
+        "explain_agree": "{agree} of {total} Signals strategies agree on this reading.",
+    },
+}
+
+# English counterpart of FEED_TEXT_BANNED: no advice, no promises, no talk about
+# the person's money, in the English text either.
+FEED_TEXT_BANNED_EN = [
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"you should",
+        r"your portfolio",
+        r"your (gains|profits)",
+        r"guarantee",
+        r"risk[- ]free",
+        r"sure (thing|bet)",
+        r"price target|target price",
+        r"\bcopy\b",
+        r"invest now",
+        r"don't miss",
+        r"buy now|sell now",
+        r"leverage|stop loss|take profit",
+    )
+]
+
+
+def _text(lang: str, key: str, **values: object) -> str:
+    return FEED_TEXTS[lang][key].format(**values)
+
+
+def _template_regex(template: str) -> re.Pattern[str]:
+    out, pos = "", 0
+    for m in re.finditer(r"\{(\w+)\}", template):
+        out += re.escape(template[pos : m.start()]) + rf"(?P<{m.group(1)}>\d+(?:\.\d+)?)"
+        pos = m.end()
+    return re.compile(out + re.escape(template[pos:]) + r"\Z")
+
+
+_ES_PATTERNS = [(key, _template_regex(t)) for key, t in FEED_TEXTS["es"].items()]
+
+
+def localize_text(text: str, lang: str) -> str:
+    """A stored (Spanish) feed sentence in `lang`. Text that is not one of the
+    feed's own sentences is returned unchanged rather than guessed."""
+    if lang == "es" or lang not in FEED_TEXTS:
+        return text
+    for key, pattern in _ES_PATTERNS:
+        m = pattern.match(text)
+        if m:
+            return _text(lang, key, **m.groupdict())
+    return text
+
+
 def compute_reading(coin: str, klines: list[Kline], now: datetime) -> dict:
     """Pure: candles → one feed entry (no id, no time of insert)."""
     if len(klines) < 60:
@@ -114,36 +206,30 @@ def compute_reading(coin: str, klines: list[Kline], now: datetime) -> dict:
     strong = adx_v is not None and adx_v >= 25
     confidence = "none" if state == "wait" else ("high" if agree >= 2 or strong else "medium")
 
-    short = {
-        "buy": "Las lecturas del precio en las últimas horas apuntan hacia arriba.",
-        "sell": "Las lecturas del precio en las últimas horas apuntan hacia abajo.",
-        "wait": "No hay una dirección clara por ahora. Te avisamos cuando la haya.",
-    }[state]
+    short = _text("es", f"short_{state}")
     if abs(change) < Decimal("0.2"):
-        b1 = "En las últimas 24 horas casi no se movió."
+        b1 = _text("es", "change_flat")
     else:
-        b1 = f"En las últimas 24 horas {'subió' if change > 0 else 'bajó'} {_pct(change)}%."
+        b1 = _text("es", "change_up" if change > 0 else "change_down", pct=_pct(change))
     if adx_v is None:
-        b2 = "Todavía no hay datos para medir la fuerza de la tendencia."
+        b2 = _text("es", "adx_none")
     else:
-        fuerza = "alta" if adx_v >= 25 else ("moderada" if adx_v >= 18 else "baja")
-        b2 = f"La fuerza de la tendencia (ADX) está en {adx_v:.0f}: es {fuerza}."
+        level = "high" if adx_v >= 25 else ("moderate" if adx_v >= 18 else "low")
+        b2 = _text("es", f"adx_{level}", adx=f"{adx_v:.0f}")
     if rsi_v is None:
-        b3 = "Todavía no hay datos para el RSI."
+        b3 = _text("es", "rsi_none")
     elif rsi_v >= 70:
-        b3 = f"El RSI está en {rsi_v:.0f}: subió rápido en poco tiempo."
+        b3 = _text("es", "rsi_high", rsi=f"{rsi_v:.0f}")
     elif rsi_v <= 30:
-        b3 = f"El RSI está en {rsi_v:.0f}: bajó rápido en poco tiempo."
+        b3 = _text("es", "rsi_low", rsi=f"{rsi_v:.0f}")
     else:
-        b3 = f"El RSI está en {rsi_v:.0f}: en una zona media."
+        b3 = _text("es", "rsi_mid", rsi=f"{rsi_v:.0f}")
     if state == "wait":
-        explanation = (
-            "Las estrategias de Señales no coinciden en una dirección."
-            if votes["buy"] and votes["sell"]
-            else "Ninguna estrategia de Señales ve una dirección clara."
+        explanation = _text(
+            "es", "explain_split" if votes["buy"] and votes["sell"] else "explain_none"
         )
     else:
-        explanation = f"{agree} de {len(CATALOG)} estrategias de Señales coinciden en esta lectura."
+        explanation = _text("es", "explain_agree", agree=agree, total=len(CATALOG))
 
     if not text_is_clean(short, b1, b2, b3, explanation):  # pragma: no cover - templates are fixed
         raise ValueError("feed text failed the banned-phrase check")
@@ -201,16 +287,21 @@ def _as_dt(v) -> datetime:
     return datetime.fromisoformat(str(v))
 
 
-def wire(entry: dict) -> dict:
-    """A stored entry as the hub reads it (no strategy internals beyond names)."""
+def wire(entry: dict, lang: str = "es") -> dict:
+    """A stored entry as the hub reads it (no strategy internals beyond names),
+    its text in `lang` (stored rows are Spanish)."""
     mxn = entry.get("ref_price_mxn")
+
+    def t(text: str) -> str:
+        return localize_text(text, lang)
+
     return {
         "id": str(entry["id"]),
         "coin": entry["coin"],
         "state": entry["state"],
         "confidence": entry["confidence"],
-        "explanation": entry["explanation"],
+        "explanation": t(entry["explanation"]),
         "at": _as_dt(entry["created_at"]).isoformat(),
         "ref_price_mxn": float(mxn) if mxn is not None else None,
-        "why": {"short": entry["why_short"], "bullets": list(entry["why_bullets"])},
+        "why": {"short": t(entry["why_short"]), "bullets": [t(b) for b in entry["why_bullets"]]},
     }

@@ -29,6 +29,7 @@ import jwt
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
+from .locale import LANG_COOKIE, LANG_COOKIE_MAX_AGE, normalize_lang
 
 sso_router = APIRouter(tags=["sso"])
 
@@ -114,7 +115,10 @@ def verify_session_jwt(token: str) -> dict:
 
 
 @sso_router.get("/auth/sso", include_in_schema=False)
-async def sso_landing(token: str = Query(...)) -> RedirectResponse:
+async def sso_landing(
+    token: str = Query(...),
+    lang: str | None = Query(default=None),
+) -> RedirectResponse:
     payload = _decode_launch_token(token)
     session = mint_session_jwt(user_id=payload["user_id"], email=payload["email"])
     response = RedirectResponse(url="/dashboard", status_code=302)
@@ -127,6 +131,21 @@ async def sso_landing(token: str = Query(...)) -> RedirectResponse:
         max_age=SESSION_TTL_SECONDS,
         path="/",
     )
+    # Hub PR #174 sends `lang` only for English; no lang means a Spanish hub, so a
+    # stale en choice is dropped instead of sending a Spanish user to /en/….
+    language = normalize_lang(lang)
+    if language:
+        response.set_cookie(
+            LANG_COOKIE,
+            language,
+            httponly=True,
+            secure=os.environ.get("CHALYBCRYPTO_ENV", "prod").lower() != "dev",
+            samesite="lax",
+            max_age=LANG_COOKIE_MAX_AGE,
+            path="/",
+        )
+    else:
+        response.delete_cookie(LANG_COOKIE, path="/")
     return response
 
 

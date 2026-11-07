@@ -5,7 +5,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Cookie, FastAPI, HTTPException
+from fastapi import Cookie, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
@@ -18,6 +18,7 @@ from .auth import auth_mode
 from .consumption import get_hub_client
 from .deps import get_store
 from .hub_api import HUB_API_PREFIX, build_hub_app
+from .locale import LANG_COOKIE, hub_path, normalize_lang
 from .routes import router as api_router
 from .sso import SESSION_COOKIE_NAME, sso_router, verify_session_jwt
 
@@ -80,7 +81,7 @@ def health() -> dict[str, str]:
     return {"status": "ok", "env": s.app_env}
 
 
-def _hub_redirect_url() -> str | None:
+def _hub_redirect_url(lang: str | None = None) -> str | None:
     """CHALYBCRYPTO_REDIRECT_TO_HUB=1: the user pages (/ and /dashboard) send
     people to Señales inside the hub. Default off, so the old panel keeps
     working until the cutover. Flipping it back is the rollback. The API,
@@ -88,13 +89,21 @@ def _hub_redirect_url() -> str | None:
     if os.environ.get("CHALYBCRYPTO_REDIRECT_TO_HUB", "").strip().lower() not in ("1", "true", "yes"):
         return None
     base = (os.environ.get("CHALYB_BASE_URL") or "https://www.chalyb.com").strip().rstrip("/")
-    return f"{base}/app/senales"
+    return f"{base}{hub_path('/app/senales', lang)}"
+
+
+def _request_lang(query: str | None, cookie: str | None) -> str | None:
+    """`?lang=` first, then the language the SSO launch left in the cookie."""
+    return normalize_lang(query) or normalize_lang(cookie)
 
 
 @app.get("/", include_in_schema=False)
-def root() -> RedirectResponse:
+def root(
+    lang: str | None = Query(default=None),
+    lang_cookie: str | None = Cookie(default=None, alias=LANG_COOKIE),
+) -> RedirectResponse:
     """Friendly landing — send browsers to the dashboard (or the hub)."""
-    return RedirectResponse(url=_hub_redirect_url() or "/dashboard")
+    return RedirectResponse(url=_hub_redirect_url(_request_lang(lang, lang_cookie)) or "/dashboard")
 
 
 def _has_valid_session(token: str | None) -> bool:
@@ -107,7 +116,7 @@ def _has_valid_session(token: str | None) -> bool:
     return True
 
 
-def _hub_launch_url() -> str | None:
+def _hub_launch_url(lang: str | None = None) -> str | None:
     """Chalyb's cross-app launcher for this engine: it signs the visitor in (or
     sends them to /sign-in), checks the plan, mints the SSO token and comes back
     through /auth/sso."""
@@ -119,12 +128,16 @@ def _hub_launch_url() -> str | None:
     slug = (
         os.environ.get("CHALYB_ENGINE_SLUG") or os.environ.get("ENGINE_SLUG") or "chalybcrypto"
     ).strip()
-    return f"{hub}/auth/launch/{slug}"
+    # The hub's launcher sits outside its locale tree; `lang` keeps its sign-in in English.
+    suffix = "?lang=en" if normalize_lang(lang) == "en" else ""
+    return f"{hub}/auth/launch/{slug}{suffix}"
 
 
 @app.get("/dashboard", include_in_schema=False, response_model=None)
 def dashboard_index(
     nxc_session: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    lang: str | None = Query(default=None),
+    lang_cookie: str | None = Cookie(default=None, alias=LANG_COOKIE),
 ) -> Response:
     """Serve the single-page dashboard. Per ARCHITECTURE, the production dashboard
     lives inside chalyb.com; this is the in-repo demo UI so the API is testable
@@ -133,11 +146,12 @@ def dashboard_index(
     With CHALYBCRYPTO_REDIRECT_TO_HUB on, it redirects to /app/senales in the hub
     instead. In jwt mode (always on Cloud Run) a visitor without a valid session
     is sent to Chalyb to sign in instead of getting a panel whose every call fails 401."""
-    hub = _hub_redirect_url()
+    language = _request_lang(lang, lang_cookie)
+    hub = _hub_redirect_url(language)
     if hub:
         return RedirectResponse(url=hub, status_code=302)
     if auth_mode() == "jwt" and not _has_valid_session(nxc_session):
-        launch = _hub_launch_url()
+        launch = _hub_launch_url(language)
         if launch:
             return RedirectResponse(url=launch, status_code=302)
         return HTMLResponse(
