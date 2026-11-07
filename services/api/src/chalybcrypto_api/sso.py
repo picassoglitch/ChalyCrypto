@@ -117,7 +117,7 @@ def verify_session_jwt(token: str) -> dict:
 @sso_router.get("/auth/sso", include_in_schema=False)
 async def sso_landing(
     token: str = Query(...),
-    lang: str | None = Query(default=None, max_length=16),
+    lang: str | None = Query(default=None),
 ) -> RedirectResponse:
     payload = _decode_launch_token(token)
     session = mint_session_jwt(user_id=payload["user_id"], email=payload["email"])
@@ -131,12 +131,21 @@ async def sso_landing(
         max_age=SESSION_TTL_SECONDS,
         path="/",
     )
-    # Hub PR #174 sends the screen's language; later hops back to the hub reuse it.
+    # Hub PR #174 sends `lang` only for English; no lang means a Spanish hub, so a
+    # stale en choice is dropped instead of sending a Spanish user to /en/….
     language = normalize_lang(lang)
     if language:
         response.set_cookie(
-            LANG_COOKIE, language, samesite="lax", max_age=LANG_COOKIE_MAX_AGE, path="/"
+            LANG_COOKIE,
+            language,
+            httponly=True,
+            secure=os.environ.get("CHALYBCRYPTO_ENV", "prod").lower() != "dev",
+            samesite="lax",
+            max_age=LANG_COOKIE_MAX_AGE,
+            path="/",
         )
+    else:
+        response.delete_cookie(LANG_COOKIE, path="/")
     return response
 
 

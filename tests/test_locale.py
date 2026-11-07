@@ -230,6 +230,32 @@ def test_sso_without_a_known_language_sets_no_language(client, lang):
     assert client.cookies.get("chalyb_lang") is None
 
 
+@pytest.mark.parametrize("lang", [None, "fr"])
+def test_spanish_launch_drops_an_old_english_choice(client, monkeypatch, lang):
+    """The hub sends `lang` only for English, so no lang means Spanish now."""
+    monkeypatch.setenv("CHALYBCRYPTO_REDIRECT_TO_HUB", "1")
+    client.get(_launch("en"), follow_redirects=False)
+    assert client.cookies.get("chalyb_lang") == "en"
+    r = client.get(_launch(lang), follow_redirects=False)
+    assert "chalyb_lang=" in r.headers.get("set-cookie", "")
+    assert client.cookies.get("chalyb_lang") is None
+    r = client.get("/dashboard", follow_redirects=False)
+    assert r.headers["location"] == "https://www.chalyb.com/app/senales"
+
+
+def test_lang_cookie_is_httponly(client):
+    r = client.get(_launch("en"), follow_redirects=False)
+    lang_cookie = [c for c in r.headers.get_list("set-cookie") if c.startswith("chalyb_lang=")]
+    assert lang_cookie and "httponly" in lang_cookie[0].lower()
+
+
+def test_overlong_lang_is_ignored_not_rejected(client, monkeypatch):
+    monkeypatch.setenv("CHALYBCRYPTO_REDIRECT_TO_HUB", "1")
+    r = client.get("/dashboard?lang=" + "x" * 40, follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == "https://www.chalyb.com/app/senales"
+
+
 @pytest.mark.parametrize("flow", ["english", "spanish", "none"])
 def test_redirect_to_hub_keeps_the_sso_language(client, monkeypatch, flow):
     monkeypatch.setenv("CHALYBCRYPTO_REDIRECT_TO_HUB", "1")

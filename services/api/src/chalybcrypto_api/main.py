@@ -99,7 +99,7 @@ def _request_lang(query: str | None, cookie: str | None) -> str | None:
 
 @app.get("/", include_in_schema=False)
 def root(
-    lang: str | None = Query(default=None, max_length=16),
+    lang: str | None = Query(default=None),
     lang_cookie: str | None = Cookie(default=None, alias=LANG_COOKIE),
 ) -> RedirectResponse:
     """Friendly landing — send browsers to the dashboard (or the hub)."""
@@ -136,7 +136,7 @@ def _hub_launch_url(lang: str | None = None) -> str | None:
 @app.get("/dashboard", include_in_schema=False, response_model=None)
 def dashboard_index(
     nxc_session: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
-    lang: str | None = Query(default=None, max_length=16),
+    lang: str | None = Query(default=None),
     lang_cookie: str | None = Cookie(default=None, alias=LANG_COOKIE),
 ) -> Response:
     """Serve the single-page dashboard. Per ARCHITECTURE, the production dashboard

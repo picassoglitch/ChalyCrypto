@@ -140,7 +140,7 @@ _RANGES = {"1d": ("1h", 24), "7d": ("4h", 42), "1m": ("1d", 30)}
 
 
 def feed_lang(
-    lang: str | None = Query(default=None, max_length=16),
+    lang: str | None = Query(default=None),
     accept_language: str | None = Header(default=None),
 ) -> Lang:
     return normalize_lang(lang) or lang_from_accept_language(accept_language) or DEFAULT_LANG
