@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -101,6 +102,20 @@ _DIGEST_SYSTEM = (
 )
 
 
+# English variants: the Spanish prompts above stay byte-identical (cache + output
+# unchanged); `lang="en"` swaps only the language instruction.
+_ES_DEFAULT = re.compile(r"Spanish unless (the user )?data is clearly English\.")
+_EN_LINE = "Write in English."
+
+
+def _system_for(system: str, lang: str) -> str:
+    if lang != "en":
+        return system
+    if _ES_DEFAULT.search(system):
+        return _ES_DEFAULT.sub(_EN_LINE, system)
+    return f"{system} {_EN_LINE}"
+
+
 class ClaudeAnalyst:
     """Async, explanation-only Claude wrapper. Returns None on failure (never raises)."""
 
@@ -175,9 +190,11 @@ class ClaudeAnalyst:
         kind: str,
         external_user_id: str | None = None,
         reservation_id: str | None = None,
+        lang: str = "es",
     ) -> AnalystResponse | None:
         if not self._api_key:
             return None
+        system = _system_for(system, lang)
         body = {
             "model": self._model,
             "max_tokens": self._max_tokens,
@@ -240,6 +257,7 @@ class ClaudeAnalyst:
         *,
         external_user_id: str | None = None,
         reservation_id: str | None = None,
+        lang: str = "es",
     ) -> AnalystResponse | None:
         user = json.dumps(
             {
@@ -268,6 +286,7 @@ class ClaudeAnalyst:
             kind="thesis",
             external_user_id=external_user_id,
             reservation_id=reservation_id,
+            lang=lang,
         )
 
     async def continue_briefing(
@@ -277,6 +296,7 @@ class ClaudeAnalyst:
         *,
         external_user_id: str | None = None,
         reservation_id: str | None = None,
+        lang: str = "es",
     ) -> AnalystResponse | None:
         user = json.dumps(
             {
@@ -294,6 +314,7 @@ class ClaudeAnalyst:
             kind="continue_brief",
             external_user_id=external_user_id,
             reservation_id=reservation_id,
+            lang=lang,
         )
 
     async def daily_digest(
@@ -302,6 +323,7 @@ class ClaudeAnalyst:
         *,
         external_user_id: str | None = None,
         reservation_id: str | None = None,
+        lang: str = "es",
     ) -> AnalystResponse | None:
         user = json.dumps(
             {
@@ -317,4 +339,5 @@ class ClaudeAnalyst:
             kind="daily_digest",
             external_user_id=external_user_id,
             reservation_id=reservation_id,
+            lang=lang,
         )

@@ -13,8 +13,9 @@ Contract (versioned; additive changes only within v1):
              GET /me                     who the token is for
              GET /signal-prefs           the person's Señales delivery filter (or null)
              PUT /signal-prefs           replace it (validated, extra fields refused)
-             GET /feed?plan=&since=      the Señales shared feed, newest first
-             GET /feed/{id}?range=       one feed entry + its past price (MXN)
+             GET /feed?plan=&since=&lang=      the Señales shared feed, newest first
+             GET /feed/{id}?range=&lang=       one feed entry + its past price (MXN)
+           `lang` (en | es, else Accept-Language, else es) picks the feed's text language.
   Errors   FastAPI's {"detail": ...}. Usage refusals keep the consumption
            contract: 402/429/413 with detail {error: "usage_refused", reason, ...};
            hub unreachable: 503 {error: "hub_unavailable"}.
@@ -29,7 +30,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -37,6 +38,7 @@ from .auth import current_user_id
 from .deps import get_store
 from .feed import wire as feed_wire
 from .hub_auth import HubPrincipal, hub_principal, hub_user_id
+from .locale import DEFAULT_LANG, Lang, lang_from_accept_language, normalize_lang
 from .routes import router as api_router
 from .store import ApiStore
 
@@ -137,11 +139,19 @@ async def put_signal_prefs(
 _RANGES = {"1d": ("1h", 24), "7d": ("4h", 42), "1m": ("1d", 30)}
 
 
+def feed_lang(
+    lang: str | None = Query(default=None, max_length=16),
+    accept_language: str | None = Header(default=None),
+) -> Lang:
+    return normalize_lang(lang) or lang_from_accept_language(accept_language) or DEFAULT_LANG
+
+
 @hub_router.get("/feed")
 async def get_feed(
     plan: str = Query(default="PRO", pattern=r"^(FREE|PRO|VIP)$"),
     since: datetime | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=500),
+    lang: Lang = Depends(feed_lang),
     _user_id: UUID = Depends(hub_user_id),
     store: ApiStore = Depends(get_store),
 ) -> dict:
@@ -149,13 +159,14 @@ async def get_feed(
     today every plan sees the same feed. Default window: the last 30 days."""
     since = since or datetime.now(UTC) - timedelta(days=30)
     rows = await store.list_feed(since=since, limit=limit)
-    return {"plan": plan, "signals": [feed_wire(r) for r in rows]}
+    return {"plan": plan, "signals": [feed_wire(r, lang) for r in rows]}
 
 
 @hub_router.get("/feed/{entry_id}")
 async def get_feed_entry(
     entry_id: UUID,
     range_: str = Query(default="7d", alias="range", pattern=r"^(1d|7d|1m)$"),
+    lang: Lang = Depends(feed_lang),
     _user_id: UUID = Depends(hub_user_id),
     store: ApiStore = Depends(get_store),
 ) -> dict:
@@ -184,7 +195,7 @@ async def get_feed_entry(
             series = []
         finally:
             await conn.aclose()
-    return {"signal": feed_wire(row), "series": series}
+    return {"signal": feed_wire(row, lang), "series": series}
 
 
 def build_hub_app() -> FastAPI:
